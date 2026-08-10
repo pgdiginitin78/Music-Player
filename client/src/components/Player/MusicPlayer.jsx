@@ -3,6 +3,7 @@ import { useEffect, useRef } from 'react';
 import { useMusic } from '../../context/MusicContext.jsx';
 import { useTheme } from '../../context/ThemeContext.jsx';
 import { LyricsIcon, NextIcon, PauseIcon, PlayIcon, PrevIcon, ShuffleIcon, VolumeIcon } from '../icons/Icons.jsx';
+import { getSongThumbnail } from '../../services/songNormalizer.js';
 
 export default function MusicPlayer() {
   const { 
@@ -14,14 +15,11 @@ export default function MusicPlayer() {
   const hasInitRef = useRef(false);
 
   // Initialize YouTube IFrame Player DOM container ONCE (off-screen hidden player)
-  // initYouTubePlayerContainer is stable (stable useCallback in MusicContext),
-  // and the youtubePlayer service has its own _initialized guard.
-  // The hasInitRef here provides a belt-and-suspenders guarantee.
   useEffect(() => {
     if (hasInitRef.current) return;
     hasInitRef.current = true;
     initYouTubePlayerContainer('youtube-player-iframe');
-  }, []); // empty deps — run once on mount
+  }, []);
 
   const formatTime = (time) => {
     if (!time || isNaN(time)) return "0:00";
@@ -41,6 +39,7 @@ export default function MusicPlayer() {
           {audioState === 'error' && (
             <div className="flex gap-2">
               <button 
+                type="button"
                 onClick={retryPlayback}
                 className="underline font-bold text-white hover:text-amber-200"
               >
@@ -48,6 +47,7 @@ export default function MusicPlayer() {
               </button>
               <span>•</span>
               <button 
+                type="button"
                 onClick={playNext}
                 className="underline font-bold text-white hover:text-amber-200"
               >
@@ -101,11 +101,15 @@ export default function MusicPlayer() {
             <div className="flex items-center gap-4 w-full md:w-1/3 mt-2 md:mt-0">
               <div className="w-14 h-14 rounded-lg overflow-hidden flex-shrink-0 shadow-lg shadow-black/50 relative">
                 <img 
-                  src={currentSong?.coverImage || "/images/default-album.webp"} 
+                  src={getSongThumbnail(currentSong)} 
                   alt={currentSong?.title || "Song Cover"} 
                   onError={(e) => {
                     e.currentTarget.onerror = null;
-                    e.currentTarget.src = "/images/default-album.webp";
+                    if (currentSong?.youtubeVideoId && !e.currentTarget.src.includes('hqdefault')) {
+                      e.currentTarget.src = `https://i.ytimg.com/vi/${currentSong.youtubeVideoId}/hqdefault.jpg`;
+                    } else {
+                      e.currentTarget.src = "/images/default-album.webp";
+                    }
                   }}
                   className="w-full h-full object-cover" 
                 />
@@ -113,7 +117,6 @@ export default function MusicPlayer() {
               <div className="min-w-0 flex-1">
                 <h4 className="font-semibold text-white truncate text-glow">{currentSong?.title || 'No Song Selected'}</h4>
                 <p className="text-sm text-gray-300 font-medium truncate">{currentSong?.artist || 'Select a song to start playback'}</p>
-             
               </div>
             </div>
 
@@ -121,6 +124,7 @@ export default function MusicPlayer() {
             <div className="flex flex-col items-center w-full md:w-1/3 gap-2">
               <div className="flex items-center gap-6">
                 <button 
+                  type="button"
                   onClick={() => setIsShuffled(!isShuffled)} 
                   className="transition-transform hover:scale-110"
                   title={isShuffled ? "Shuffle Enabled" : "Enable Shuffle"}
@@ -129,10 +133,11 @@ export default function MusicPlayer() {
                     <ShuffleIcon active={isShuffled} className="w-5 h-5" />
                   </div>
                 </button>
-                <button onClick={playPrev} className="text-gray-300 hover:text-white transition-colors">
+                <button type="button" onClick={playPrev} className="text-gray-300 hover:text-white transition-colors">
                   <PrevIcon className="w-6 h-6" />
                 </button>
                 <button 
+                  type="button"
                   onClick={togglePlay}
                   disabled={Boolean(currentSong?.isPlayable === false)}
                   className={`w-12 h-12 text-white rounded-full flex items-center justify-center transition-transform ${
@@ -146,7 +151,7 @@ export default function MusicPlayer() {
                 >
                   {isPlaying ? <PauseIcon className="w-6 h-6" /> : <PlayIcon className="w-6 h-6" />}
                 </button>
-                <button onClick={playNext} className="text-gray-300 hover:text-white transition-colors">
+                <button type="button" onClick={playNext} className="text-gray-300 hover:text-white transition-colors">
                   <NextIcon className="w-6 h-6" />
                 </button>
               </div>
@@ -177,6 +182,7 @@ export default function MusicPlayer() {
             {/* Lyrics Toggle & Volume Controls */}
             <div className="hidden md:flex items-center justify-end gap-4 w-1/3">
               <button 
+                type="button"
                 onClick={toggleLyrics}
                 className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold transition-all hover:scale-105 border shadow-sm ${
                   showLyrics 
@@ -190,7 +196,7 @@ export default function MusicPlayer() {
               </button>
 
               <div className="flex items-center gap-2">
-                <button onClick={toggleMute} className="text-gray-400 hover:text-white transition-colors">
+                <button type="button" onClick={toggleMute} className="text-gray-400 hover:text-white transition-colors">
                   <VolumeIcon muted={isMuted || volume === 0} className="w-5 h-5" />
                 </button>
                 <input 

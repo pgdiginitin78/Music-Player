@@ -1,5 +1,5 @@
 import { searchSongs, getCapabilities } from '../services/musicService.js';
-import { getSong as getYouTubeSong } from '../services/providers/youtubeProvider.js';
+import { getSong as getYouTubeSong, normalizeSong } from '../services/providers/youtubeProvider.js';
 
 export const getSongs = async (req, res, next) => {
   try {
@@ -15,15 +15,35 @@ export const getSongs = async (req, res, next) => {
       limit: parseInt(limit, 10) || 25
     });
 
-    res.setHeader('X-Total-Count', result?.total || result?.songs?.length || 0);
+    const rawSongs = result?.songs || [];
+    const normalizedSongs = rawSongs.map(normalizeSong).filter(Boolean);
+
+    // Diagnostic logging (NO SECRETS LOGGED)
+    console.log('[SONGS CONTROLLER RESPONSE DIAGNOSTIC]', {
+      environment: process.env.NODE_ENV || 'development',
+      endpoint: '/api/songs',
+      category: category || 'all',
+      songCount: normalizedSongs.length,
+      firstSong: normalizedSongs[0] ? {
+        id: normalizedSongs[0].id,
+        youtubeVideoId: normalizedSongs[0].youtubeVideoId,
+        title: normalizedSongs[0].title,
+        coverImage: normalizedSongs[0].coverImage
+      } : null
+    });
+
+    res.setHeader('X-Total-Count', result?.total || normalizedSongs.length);
     res.setHeader('X-Page', result?.page || 1);
     res.setHeader('X-Limit', result?.limit || 25);
 
     if (req.query.paginated === 'true') {
-      return res.status(200).json(result);
+      return res.status(200).json({
+        ...result,
+        songs: normalizedSongs
+      });
     }
 
-    res.status(200).json(result?.songs || []);
+    res.status(200).json(normalizedSongs);
   } catch (error) {
     console.error('[YOUTUBE SEARCH CONTROLLER ERROR]', error.message);
     res.status(200).json([]);
@@ -40,7 +60,8 @@ export const getSongById = async (req, res, next) => {
       });
     }
 
-    const track = await getYouTubeSong(id);
+    const rawTrack = await getYouTubeSong(id);
+    const track = normalizeSong(rawTrack);
     
     if (!track) {
       return res.status(404).json({
@@ -60,11 +81,6 @@ export const getSongById = async (req, res, next) => {
   }
 };
 
-/**
- * Normalized Playback Response Endpoint
- * GET /api/songs/:id/playback
- * Returns authorized YouTube playback metadata (youtubeVideoId & IFrame method).
- */
 export const getSongPlayback = async (req, res, next) => {
   try {
     const { id } = req.params;
@@ -76,7 +92,8 @@ export const getSongPlayback = async (req, res, next) => {
       });
     }
 
-    const track = await getYouTubeSong(id);
+    const rawTrack = await getYouTubeSong(id);
+    const track = normalizeSong(rawTrack);
 
     const playbackInfo = {
       id: track?.id || id,

@@ -33,99 +33,147 @@ const POPULAR_ARTISTS = [
 export default function Home() {
   const [categories, setCategories] = useState([]);
   const [songs, setSongs] = useState([]);
-  const [page, setPage] = useState(1);
-  const pageRef = useRef(1); // stable ref for page — avoids re-creating fetchSongs on page change
   const [hasMore, setHasMore] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedArtist, setSelectedArtist] = useState("");
-  const [loading, setLoading] = useState(true);
+
+  // ── Independent loading states ──────────────────────────────────────────────
+  // isSongsLoading: true only for the initial fetch (no songs yet)
+  const [isSongsLoading, setIsSongsLoading] = useState(false);
+  // isLoadingMore: true only when loading additional pages (songs already visible)
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [error, setError] = useState(null);
+
+  // ── Page tracking via ref (avoids fetchSongs re-creation on page change) ──
+  const pageRef = useRef(1);
+
+  // ── Inflight request tracking — one AbortController per fetch cycle ────────
+  // When a new fetch starts, we abort the previous one.
+  // This guarantees the finally { setLoading(false) } of the aborted call
+  // runs immediately and never blocks the UI.
+  const fetchAbortRef = useRef(null);
+
   const { activeCategorySlug, setActiveCategorySlug, theme } = useTheme();
 
-  // Load categories
+  // ── Load categories (fire and forget — never blocks song loading) ──────────
   useEffect(() => {
-    const loadCategories = async () => {
+    let cancelled = false;
+    const load = async () => {
       try {
         const cats = await getCategories();
-        setCategories(cats);
+        if (!cancelled) setCategories(cats);
       } catch (err) {
-        console.error("Error loading categories:", err);
+        // Categories failing must NEVER block the rest of the app
+        if (!cancelled) console.warn("[HOME] Categories load failed:", err.message);
       }
     };
-    loadCategories();
-  }, []);
+    load();
+    return () => { cancelled = true; };
+  }, []); // run once
 
-  const activeCategory = categories.find((c) => c.slug === activeCategorySlug);
   const activeCategorySlugNormalized =
     activeCategorySlug === "default" || activeCategorySlug === "for-you"
       ? ""
       : activeCategorySlug;
 
-  // Dynamic search execution against API
+  const activeCategory = categories.find((c) => c.slug === activeCategorySlug);
+
+  // ── Core song fetcher ───────────────────────────────────────────────────────
+  // IMPORTANT: This function:
+  //   1. Aborts any previous inflight request
+  //   2. Always calls setLoading(false) in finally — even on abort/timeout/error
+  //   3. Ignores AbortError responses (they are intentional cancellations)
   const fetchSongs = useCallback(
     async (isLoadMore = false) => {
-      try {
-        setLoading(true);
+      // Abort any currently inflight request
+      if (fetchAbortRef.current) {
+        fetchAbortRef.current.abort();
+      }
+      const controller = new AbortController();
+      fetchAbortRef.current = controller;
+
+      const targetPage = isLoadMore ? pageRef.current + 1 : 1;
+
+      // Show the right loading indicator:
+      // - isSongsLoading: full-area spinner (only when no songs are shown yet)
+      // - isLoadingMore: small spinner on the "Load More" button
+      if (isLoadMore) {
+        setIsLoadingMore(true);
+      } else {
+        setIsSongsLoading(true);
         setError(null);
+      }
 
-        // Read page from ref — does NOT cause fetchSongs to be recreated on page change
-        const targetPage = isLoadMore ? pageRef.current + 1 : 1;
+      try {
+        const params = { page: targetPage, limit: 25 };
+        if (searchQuery.trim())           params.search   = searchQuery.trim();
+        if (activeCategorySlugNormalized) params.category = activeCategorySlugNormalized;
+        if (selectedArtist)               params.artist   = selectedArtist;
 
-        const params = {
-          page: targetPage,
-          limit: 25,
-        };
+        const results = await getSongs(params, controller.signal);
 
-        if (searchQuery.trim()) {
-          params.search = searchQuery.trim();
-        }
-        if (activeCategorySlugNormalized) {
-          params.category = activeCategorySlugNormalized;
-        }
-        if (selectedArtist) {
-          params.artist = selectedArtist;
-        }
-
-        const results = await getSongs(params);
+        // Ignore result if this request was intentionally aborted
+        if (controller.signal.aborted) return;
 
         if (isLoadMore) {
           setSongs((prev) => [...prev, ...results]);
           pageRef.current = targetPage;
-          setPage(targetPage);
         } else {
           setSongs(results);
           pageRef.current = 1;
-          setPage(1);
         }
 
         setHasMore(results.length >= 25);
       } catch (err) {
-        console.error("Failed to fetch songs from API:", err);
-        setError("Unable to retrieve tracks from YouTube Data API.");
+        // AbortError = intentional cancel (new search/category started) — not an error
+        if (err.name === "AbortError") return;
+
+        console.error("[HOME] Failed to fetch songs:", err.message);
+        setError("Unable to load songs. Please check your connection and try again.");
       } finally {
-        setLoading(false);
+        // Always clear loading — even on abort (abort means a new request is
+        // already inflight and will set its own loading state)
+        if (!controller.signal.aborted) {
+          setIsSongsLoading(false);
+          setIsLoadingMore(false);
+        }
       }
     },
-    [searchQuery, activeCategorySlugNormalized, selectedArtist],
-    // NOTE: `page` is intentionally excluded — read via pageRef.current to prevent
-    // an infinite loop where setPage() → new fetchSongs → useEffect → fetchSongs → ...
+    [searchQuery, activeCategorySlugNormalized, selectedArtist]
+    // NOTE: page intentionally excluded — read via pageRef.current
   );
 
-  // Debounced effect when search/filters change
+  // ── Debounced fetch on filter/search/category change ─────────────────────
   useEffect(() => {
+    // 300ms debounce to avoid firing on every keystroke
     const handler = setTimeout(() => {
       fetchSongs(false);
     }, 300);
 
-    return () => clearTimeout(handler);
+    return () => {
+      clearTimeout(handler);
+      // Also abort any pending request when dependencies change
+      // (e.g., user types quickly — cancel the previous fetch)
+      if (fetchAbortRef.current) {
+        fetchAbortRef.current.abort();
+      }
+    };
   }, [searchQuery, activeCategorySlugNormalized, selectedArtist]);
+  // NOTE: fetchSongs intentionally excluded to avoid double-firing.
+  // It only changes when the same deps change, so including it would
+  // cause the effect to run an extra time with no benefit.
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      if (fetchAbortRef.current) {
+        fetchAbortRef.current.abort();
+      }
+    };
+  }, []);
 
   const handleArtistClick = (artistName) => {
-    if (selectedArtist === artistName) {
-      setSelectedArtist("");
-    } else {
-      setSelectedArtist(artistName);
-    }
+    setSelectedArtist((prev) => (prev === artistName ? "" : artistName));
   };
 
   const handleResetFilters = () => {
@@ -133,6 +181,9 @@ export default function Home() {
     setSelectedArtist("");
     setActiveCategorySlug("for-you");
   };
+
+  // Combined loading flag for UI: only show full spinner when no songs exist yet
+  const showFullSpinner = isSongsLoading && songs.length === 0;
 
   return (
     <motion.div
@@ -172,6 +223,7 @@ export default function Home() {
           />
           {searchQuery && (
             <button
+              type="button"
               onClick={() => setSearchQuery("")}
               className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-white text-sm"
             >
@@ -190,6 +242,7 @@ export default function Home() {
           </h2>
           {selectedArtist && (
             <button
+              type="button"
               onClick={() => setSelectedArtist("")}
               className="text-xs text-gray-400 hover:text-white underline"
             >
@@ -204,6 +257,7 @@ export default function Home() {
             return (
               <button
                 key={artist.name}
+                type="button"
                 onClick={() => handleArtistClick(artist.name)}
                 className={`flex-shrink-0 px-4 py-2.5 rounded-2xl text-left transition-all border backdrop-blur-md snap-start flex flex-col justify-between ${
                   isSelected
@@ -244,6 +298,7 @@ export default function Home() {
             return (
               <button
                 key={category._id || category.slug}
+                type="button"
                 onClick={() => setActiveCategorySlug(category.slug)}
                 className={`flex-shrink-0 px-5 py-2.5 rounded-full text-sm font-medium transition-all border backdrop-blur-md snap-start ${
                   isActive
@@ -267,7 +322,7 @@ export default function Home() {
         </div>
       </section>
 
-      {/* Track Listing Header & Active Filters */}
+      {/* Track Listing */}
       <section>
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
           <div>
@@ -302,6 +357,7 @@ export default function Home() {
                 </span>
               )}
               <button
+                type="button"
                 onClick={handleResetFilters}
                 className="text-xs text-rose-400 hover:text-rose-300 underline ml-2"
               >
@@ -311,38 +367,43 @@ export default function Home() {
           )}
         </div>
 
-        {loading && songs.length === 0 ? (
+        {/* ── Loading: full-area spinner only when no songs exist yet ── */}
+        {showFullSpinner ? (
           <div className="flex items-center justify-center h-64">
             <div
               className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2"
               style={{ borderColor: theme.primary }}
-            ></div>
+            />
           </div>
         ) : error ? (
+          /* ── Error state ── */
           <div className="flex flex-col items-center justify-center h-64 text-center px-4 bg-white/5 rounded-3xl border border-white/10">
             <p className="text-lg text-rose-300 mb-4">{error}</p>
             <button
+              type="button"
               onClick={() => fetchSongs(false)}
               className="px-5 py-2.5 rounded-xl font-semibold text-white text-sm"
               style={{ backgroundColor: theme.primary }}
             >
-              Retry Music Fetch
+              Retry
             </button>
           </div>
         ) : songs.length === 0 ? (
+          /* ── Empty state ── */
           <div className="text-center py-16 bg-white/5 rounded-3xl border border-white/10 backdrop-blur-sm px-6">
             <MusicIcon className="w-16 h-16 mx-auto mb-4 text-gray-500 opacity-40" />
             <h3 className="text-lg font-semibold text-white mb-2">
-              No Suitable  Songs Found
+              No Songs Found
             </h3>
             <p className="text-sm text-gray-400 max-w-md mx-auto mb-6">
               {activeCategory?.name &&
               activeCategorySlug !== "for-you" &&
               activeCategorySlug !== "default"
-                ? `No suitable ${activeCategory.name}  videos found.`
-                : "No suitable  songs found for your query."}
+                ? `No suitable ${activeCategory.name} videos found.`
+                : "No suitable songs found for your query."}
             </p>
             <button
+              type="button"
               onClick={handleResetFilters}
               className="px-5 py-2 rounded-full text-xs font-semibold text-white bg-white/10 hover:bg-white/20 border border-white/20 transition-all"
             >
@@ -350,7 +411,18 @@ export default function Home() {
             </button>
           </div>
         ) : (
+          /* ── Song grid ── */
           <>
+            {/* Subtle overlay spinner when reloading existing content */}
+            {isSongsLoading && songs.length > 0 && (
+              <div className="flex justify-center mb-4">
+                <div
+                  className="animate-spin rounded-full h-6 w-6 border-t-2 border-b-2 opacity-60"
+                  style={{ borderColor: theme.primary }}
+                />
+              </div>
+            )}
+
             <motion.div
               layout
               className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-6"
@@ -358,7 +430,7 @@ export default function Home() {
               <AnimatePresence>
                 {songs.map((song) => (
                   <SongCard
-                    key={song.VideoId || song.id || song._id}
+                    key={song.youtubeVideoId || song.id || song._id}
                     song={song}
                     playlist={songs}
                   />
@@ -369,11 +441,12 @@ export default function Home() {
             {hasMore && (
               <div className="flex justify-center mt-10">
                 <button
+                  type="button"
                   onClick={() => fetchSongs(true)}
-                  disabled={loading}
-                  className="px-6 py-3 rounded-full text-sm font-semibold text-white bg-white/10 hover:bg-white/20 border border-white/20 backdrop-blur-md transition-all shadow-lg"
+                  disabled={isLoadingMore}
+                  className="px-6 py-3 rounded-full text-sm font-semibold text-white bg-white/10 hover:bg-white/20 border border-white/20 backdrop-blur-md transition-all shadow-lg disabled:opacity-60"
                 >
-                  {loading ? "Loading More..." : "Load More Songs"}
+                  {isLoadingMore ? "Loading More..." : "Load More Songs"}
                 </button>
               </div>
             )}

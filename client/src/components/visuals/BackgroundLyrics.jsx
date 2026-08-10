@@ -5,6 +5,7 @@ import { useMusic } from '../../context/MusicContext.jsx';
 import { useTheme } from '../../context/ThemeContext.jsx';
 import { CloseIcon, MusicIcon } from '../icons/Icons.jsx';
 import { fetchLyrics, parseYouTubeTitle } from '../../services/lyricsService.js';
+import { getSongThumbnail } from '../../services/songNormalizer.js';
 
 /* ─────────────────────────────────────────────────────────── */
 export default function BackgroundLyrics() {
@@ -158,6 +159,8 @@ export default function BackgroundLyrics() {
     loadLyrics(currentSong, retryCountRef.current);
   };
 
+  const thumbnailSrc = getSongThumbnail(currentSong);
+
   /* ─── Render ─────────────────────────────────────────────── */
   return (
     <AnimatePresence>
@@ -173,7 +176,7 @@ export default function BackgroundLyrics() {
         <div
           className="absolute inset-0 -z-10 scale-125"
           style={{
-            backgroundImage: `url(${currentSong.coverImage || '/images/default-album.webp'})`,
+            backgroundImage: `url(${thumbnailSrc})`,
             backgroundSize: 'cover',
             backgroundPosition: 'center',
             filter: 'blur(70px)',
@@ -194,8 +197,16 @@ export default function BackgroundLyrics() {
           <div className="flex items-center gap-3">
             <div className="w-12 h-12 rounded-xl overflow-hidden shadow-xl border border-white/10 flex-shrink-0">
               <img
-                src={currentSong.coverImage || '/images/default-album.webp'}
+                src={thumbnailSrc}
                 alt={currentSong.title}
+                onError={(e) => {
+                  e.currentTarget.onerror = null;
+                  if (currentSong?.youtubeVideoId && !e.currentTarget.src.includes('hqdefault')) {
+                    e.currentTarget.src = `https://i.ytimg.com/vi/${currentSong.youtubeVideoId}/hqdefault.jpg`;
+                  } else {
+                    e.currentTarget.src = "/images/default-album.webp";
+                  }
+                }}
                 className="w-full h-full object-cover"
               />
             </div>
@@ -217,6 +228,7 @@ export default function BackgroundLyrics() {
               </span>
             )}
             <button
+              type="button"
               onClick={() => setShowLyrics(false)}
               className="flex items-center gap-2 px-4 py-2 rounded-full bg-white/10 hover:bg-white/20 text-white text-xs font-semibold backdrop-blur border border-white/10 transition-all hover:scale-105"
             >

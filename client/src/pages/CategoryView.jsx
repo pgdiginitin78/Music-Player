@@ -5,6 +5,7 @@ import SongCard from '../components/SongCard.jsx';
 import { PrevIcon } from '../components/icons/Icons.jsx';
 import { getCategoryBySlug, getSongs } from '../services/api.js';
 import { useTheme } from '../context/ThemeContext.jsx';
+import { normalizeSong } from '../services/songNormalizer.js';
 
 export default function CategoryView() {
   const { slug } = useParams();
@@ -18,15 +19,34 @@ export default function CategoryView() {
     try {
       setLoading(true);
       setError(null);
-      const [cat, categorySongs] = await Promise.all([
+      const results = await Promise.allSettled([
         getCategoryBySlug(slug),
         getSongs({ category: slug, limit: 25 })
       ]);
       
-      setCategory(cat);
-      setSongs(categorySongs);
+      const catResult = results[0];
+      const songsResult = results[1];
+
+      if (catResult.status === 'fulfilled' && catResult.value) {
+        setCategory(catResult.value);
+      } else {
+        // Fallback category header info if DB call failed
+        const nameFormatted = (slug || '').split('-').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
+        setCategory({
+          name: nameFormatted || 'Category',
+          slug: slug,
+          description: `Popular ${nameFormatted} Music`,
+          wallpaper: `/wallpapers/${slug}.svg`
+        });
+      }
+
+      if (songsResult.status === 'fulfilled' && Array.isArray(songsResult.value)) {
+        setSongs(songsResult.value.map(normalizeSong).filter(Boolean));
+      } else {
+        setSongs([]);
+      }
     } catch (err) {
-      setError("Unable to load YouTube music category. Please try again.");
+      setError("Unable to load category music. Please try again.");
     } finally {
       setLoading(false);
     }

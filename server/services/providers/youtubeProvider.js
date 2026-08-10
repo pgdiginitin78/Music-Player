@@ -1,21 +1,59 @@
 import mongoose from 'mongoose';
 import YouTubeCache from '../../models/YouTubeCache.js';
 
+const CACHE_VERSION = 'v4';
+
 const categoryQueries = {
   'for-you': ['Hindi songs official', 'Bollywood hits official'],
-  'bollywood-hits': ['Bollywood Hindi hits official'],
-  'latest-hindi': ['Latest Hindi songs official'],
-  'trending-hindi': ['Trending Hindi songs official'],
-  'romantic-hindi': ['Romantic Hindi songs official'],
-  'sad-hindi': ['Sad Hindi songs official'],
-  'lo-fi-hindi': ['Lo-Fi Hindi songs official'],
-  'old-hindi': ['Old Hindi Bollywood songs official'],
-  'party-hindi': ['Party Hindi songs official'],
-  'workout-hindi': ['Workout Hindi songs official'],
-  'rain-hindi': ['Rain Hindi songs official'],
-  'acoustic-hindi': ['Acoustic Hindi songs official'],
-  'indie-hindi': ['Hindi indie songs official']
+  'bollywood-hits': ['Bollywood Hindi hits official', 'Top Bollywood songs'],
+  'latest-hindi': ['Latest Hindi songs official', 'New Hindi releases'],
+  'trending-hindi': ['Trending Hindi songs official', 'Viral Hindi songs'],
+  'romantic-hindi': ['Romantic Hindi songs official', 'Hindi love songs'],
+  'sad-hindi': ['Sad Hindi songs official', 'Heartbroken Hindi songs'],
+  'lo-fi-hindi': ['Lo-Fi Hindi songs official', 'Hindi lofi chill'],
+  'old-hindi': ['Old Hindi Bollywood songs official', '90s Hindi classics'],
+  'party-hindi': ['Party Hindi songs official', 'Hindi dance tracks'],
+  'workout-hindi': ['Workout Hindi songs official', 'High energy Hindi music'],
+  'rain-hindi': ['Rain Hindi songs official', 'Monsoon Hindi melodies'],
+  'acoustic-hindi': ['Acoustic Hindi songs official', 'Unplugged Hindi songs'],
+  'indie-hindi': ['Hindi indie songs official', 'Indian indie music']
 };
+
+/**
+ * Normalized Song Object Contract Requirement
+ */
+export function normalizeSong(raw) {
+  if (!raw) return null;
+
+  const yId = raw.youtubeVideoId || raw.id || raw._id || '';
+  const cleanYId = (typeof yId === 'string' && yId !== 'undefined' && yId !== 'null') ? yId.trim() : '';
+
+  const rawCover = raw.coverImage || raw.thumbnail || raw.cover || '';
+  let coverImage = (typeof rawCover === 'string' && rawCover.trim() !== '' && !rawCover.includes('undefined') && !rawCover.includes('null')) ? rawCover.trim() : '';
+
+  if (!coverImage && cleanYId) {
+    coverImage = `https://i.ytimg.com/vi/${cleanYId}/hqdefault.jpg`;
+  }
+
+  if (!coverImage) {
+    coverImage = '/images/default-album.webp';
+  }
+
+  return {
+    id: cleanYId || raw.id || '',
+    youtubeVideoId: cleanYId,
+    title: raw.title || raw.name || 'Untitled Song',
+    artist: raw.artist || raw.channelTitle || 'Unknown Artist',
+    album: raw.album || raw.channelTitle || 'YouTube Music',
+    category: raw.category || 'for-you',
+    coverImage: coverImage,
+    duration: typeof raw.duration === 'number' ? raw.duration : (parseInt(raw.duration, 10) || 210),
+    source: 'youtube',
+    quality: raw.quality || 'Official YouTube playback',
+    youtubeUrl: raw.youtubeUrl || (cleanYId ? `https://www.youtube.com/watch?v=${cleanYId}` : ''),
+    isPlayable: raw.isPlayable !== false
+  };
+}
 
 const fallbackHindiSongs = [
   {
@@ -121,6 +159,71 @@ const fallbackHindiSongs = [
     source: "youtube",
     youtubeUrl: "https://www.youtube.com/watch?v=f6vY6t0_d6U",
     isPlayable: true
+  },
+  {
+    id: "TFr6G5zveS8",
+    youtubeVideoId: "TFr6G5zveS8",
+    title: "Lag Jaa Gale - Woh Kaun Thi",
+    artist: "Lata Mangeshkar",
+    album: "Retro Gold",
+    category: "old-hindi",
+    coverImage: "https://i.ytimg.com/vi/TFr6G5zveS8/hqdefault.jpg",
+    duration: 255,
+    source: "youtube",
+    youtubeUrl: "https://www.youtube.com/watch?v=TFr6G5zveS8",
+    isPlayable: true
+  },
+  {
+    id: "qFknatn-dG0",
+    youtubeVideoId: "qFknatn-dG0",
+    title: "Ghungroo - War",
+    artist: "Arijit Singh, Shilpa Rao",
+    album: "War",
+    category: "party-hindi",
+    coverImage: "https://i.ytimg.com/vi/qFknatn-dG0/hqdefault.jpg",
+    duration: 302,
+    source: "youtube",
+    youtubeUrl: "https://www.youtube.com/watch?v=qFknatn-dG0",
+    isPlayable: true
+  },
+  {
+    id: "eK9j8A_w2wY",
+    youtubeVideoId: "eK9j8A_w2wY",
+    title: "Zinda - Bhaag Milkha Bhaag",
+    artist: "Siddharth Mahadevan",
+    album: "Bhaag Milkha Bhaag",
+    category: "workout-hindi",
+    coverImage: "https://i.ytimg.com/vi/eK9j8A_w2wY/hqdefault.jpg",
+    duration: 211,
+    source: "youtube",
+    youtubeUrl: "https://www.youtube.com/watch?v=eK9j8A_w2wY",
+    isPlayable: true
+  },
+  {
+    id: "BBAyR4n0p-g",
+    youtubeVideoId: "BBAyR4n0p-g",
+    title: "Baarishein",
+    artist: "Anuv Jain",
+    album: "Baarishein",
+    category: "rain-hindi",
+    coverImage: "https://i.ytimg.com/vi/BBAyR4n0p-g/hqdefault.jpg",
+    duration: 207,
+    source: "youtube",
+    youtubeUrl: "https://www.youtube.com/watch?v=BBAyR4n0p-g",
+    isPlayable: true
+  },
+  {
+    id: "0G483N8jYw0",
+    youtubeVideoId: "0G483N8jYw0",
+    title: "Cold/Mess - Acoustic",
+    artist: "Prateek Kuhad",
+    album: "Acoustic Hits",
+    category: "acoustic-hindi",
+    coverImage: "https://i.ytimg.com/vi/0G483N8jYw0/hqdefault.jpg",
+    duration: 240,
+    source: "youtube",
+    youtubeUrl: "https://www.youtube.com/watch?v=0G483N8jYw0",
+    isPlayable: true
   }
 ];
 
@@ -128,7 +231,7 @@ const fallbackHindiSongs = [
 const inMemoryCache = new Map();
 
 /**
- * Parses ISO 8601 YouTube video duration string (e.g. "PT3M45S", "PT1H2M3S") to seconds.
+ * Parses ISO 8601 YouTube video duration string to seconds.
  */
 export function parseISO8601Duration(isoDuration) {
   if (!isoDuration || typeof isoDuration !== 'string') return 0;
@@ -141,7 +244,7 @@ export function parseISO8601Duration(isoDuration) {
 }
 
 /**
- * Helper to clean title and attempt to extract title & artist from YouTube video snippet
+ * Helper to clean title and extract title & artist from YouTube video snippet
  */
 export function parseVideoTitleAndArtist(title, channelTitle) {
   let cleanTitle = (title || '')
@@ -214,32 +317,44 @@ function isPlayableSongVideo(snippet, contentDetails, status) {
   return true;
 }
 
+function getFallbackSongsForCategory(categorySlug = 'for-you') {
+  if (!categorySlug || categorySlug === 'for-you' || categorySlug === 'default') {
+    return fallbackHindiSongs.map(s => normalizeSong({ ...s, category: 'for-you' }));
+  }
+
+  const matched = fallbackHindiSongs.filter(s => s.category === categorySlug);
+  if (matched.length > 0) {
+    return matched.map(s => normalizeSong(s));
+  }
+
+  // If specific category has no exact fallback entries, map fallback songs with categorySlug
+  return fallbackHindiSongs.map(s => normalizeSong({ ...s, category: categorySlug }));
+}
+
 /**
  * Query YouTube Data API v3 search.list and videos.list with graceful fallback
  */
 export async function searchYouTubeVideos(query, categorySlug = 'for-you', limit = 25, pageToken = '') {
-  const apiKey = process.env.YOUTUBE_API_KEY;
+  const apiKey = process.env.YOUTUBE_API_KEY?.trim();
 
   if (!apiKey) {
     console.warn('[YOUTUBE WARN] YOUTUBE_API_KEY is not defined in environment. Returning fallback catalog.');
-    let filtered = fallbackHindiSongs;
-    if (categorySlug && categorySlug !== 'for-you') {
-      const matchCat = fallbackHindiSongs.filter(s => s.category === categorySlug);
-      if (matchCat.length > 0) filtered = matchCat;
-    }
-    return { songs: filtered, total: filtered.length, page: 1, limit, nextPageToken: null };
+    const fallbackList = getFallbackSongsForCategory(categorySlug);
+    return { songs: fallbackList, total: fallbackList.length, page: 1, limit, nextPageToken: null };
   }
 
-  const cacheKey = `yt_${categorySlug}__${query}_${limit}_${pageToken}`;
+  // CACHE_VERSION forces invalidation of old MongoDB Atlas records
+  const cacheKey = `yt:${CACHE_VERSION}:${categorySlug}:${query}:${limit}:${pageToken}`;
 
   // 1. Check MongoDB cache first
   if (mongoose.connection.readyState === 1) {
     try {
       const cached = await YouTubeCache.findOne({ cacheKey, expiresAt: { $gt: new Date() } });
       if (cached && cached.results && cached.results.length > 0) {
+        const normalized = cached.results.map(normalizeSong).filter(Boolean);
         return {
-          songs: cached.results,
-          total: cached.results.length,
+          songs: normalized,
+          total: normalized.length,
           page: 1,
           limit,
           nextPageToken: cached.nextPageToken || null
@@ -281,13 +396,15 @@ export async function searchYouTubeVideos(query, categorySlug = 'for-you', limit
     const nextPageToken = searchData.nextPageToken || null;
 
     if (rawItems.length === 0) {
-      return { songs: fallbackHindiSongs, total: fallbackHindiSongs.length, page: 1, limit, nextPageToken: null };
+      const fallbackList = getFallbackSongsForCategory(categorySlug);
+      return { songs: fallbackList, total: fallbackList.length, page: 1, limit, nextPageToken: null };
     }
 
     const videoIds = rawItems.map(item => item.id?.videoId).filter(Boolean);
 
     if (videoIds.length === 0) {
-      return { songs: fallbackHindiSongs, total: fallbackHindiSongs.length, page: 1, limit, nextPageToken: null };
+      const fallbackList = getFallbackSongsForCategory(categorySlug);
+      return { songs: fallbackList, total: fallbackList.length, page: 1, limit, nextPageToken: null };
     }
 
     const videoDetailsUrl = new URL('https://www.googleapis.com/youtube/v3/videos');
@@ -328,9 +445,9 @@ export async function searchYouTubeVideos(query, categorySlug = 'for-you', limit
                          thumbnails.high?.url ||
                          thumbnails.medium?.url ||
                          thumbnails.default?.url ||
-                         '/images/default-album.webp';
+                         `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`;
 
-      normalizedSongs.push({
+      const songObj = normalizeSong({
         id: videoId,
         youtubeVideoId: videoId,
         title: cleanTitle,
@@ -343,9 +460,13 @@ export async function searchYouTubeVideos(query, categorySlug = 'for-you', limit
         youtubeUrl: `https://www.youtube.com/watch?v=${videoId}`,
         isPlayable: true
       });
+
+      if (songObj) {
+        normalizedSongs.push(songObj);
+      }
     }
 
-    const finalSongs = normalizedSongs.length > 0 ? normalizedSongs : fallbackHindiSongs;
+    const finalSongs = normalizedSongs.length > 0 ? normalizedSongs : getFallbackSongsForCategory(categorySlug);
 
     const result = {
       songs: finalSongs,
@@ -379,12 +500,8 @@ export async function searchYouTubeVideos(query, categorySlug = 'for-you', limit
 
   } catch (err) {
     console.warn('[YOUTUBE FETCH ERROR]', err.message, '- Using fallback music list.');
-    let filtered = fallbackHindiSongs;
-    if (categorySlug && categorySlug !== 'for-you') {
-      const matchCat = fallbackHindiSongs.filter(s => s.category === categorySlug);
-      if (matchCat.length > 0) filtered = matchCat;
-    }
-    return { songs: filtered, total: filtered.length, page: 1, limit, nextPageToken: null };
+    const fallbackList = getFallbackSongsForCategory(categorySlug);
+    return { songs: fallbackList, total: fallbackList.length, page: 1, limit, nextPageToken: null };
   }
 }
 
@@ -400,7 +517,7 @@ export async function searchSongs({ query = '', category = '', artist = '', page
     searchQuery = `${query} Hindi songs official`;
   } else if (category && categoryQueries[category]) {
     const queries = categoryQueries[category];
-    searchQuery = queries[Math.floor(Math.random() * queries.length)];
+    searchQuery = queries[0]; // deterministic query for consistent caching & results
   } else {
     searchQuery = 'Bollywood Hindi hits official';
   }
@@ -413,11 +530,11 @@ export async function searchSongs({ query = '', category = '', artist = '', page
  * Provider interface method: getSong (by YouTube Video ID)
  */
 export async function getSong(id) {
-  const apiKey = process.env.YOUTUBE_API_KEY;
+  const apiKey = process.env.YOUTUBE_API_KEY?.trim();
   if (!apiKey) {
     const found = fallbackHindiSongs.find(s => s.id === id || s.youtubeVideoId === id);
-    if (found) return found;
-    return {
+    if (found) return normalizeSong(found);
+    return normalizeSong({
       id,
       youtubeVideoId: id,
       title: "YouTube Video",
@@ -429,7 +546,7 @@ export async function getSong(id) {
       source: "youtube",
       youtubeUrl: `https://www.youtube.com/watch?v=${id}`,
       isPlayable: true
-    };
+    });
   }
 
   try {
@@ -448,7 +565,7 @@ export async function getSong(id) {
 
     if (!details) {
       const found = fallbackHindiSongs.find(s => s.id === id || s.youtubeVideoId === id);
-      if (found) return found;
+      if (found) return normalizeSong(found);
       return null;
     }
 
@@ -457,15 +574,15 @@ export async function getSong(id) {
     const status = details.status;
 
     if (status && status.embeddable === false) {
-      return { id, youtubeVideoId: id, isPlayable: false };
+      return normalizeSong({ id, youtubeVideoId: id, isPlayable: false });
     }
 
     const { title: cleanTitle, artist: cleanArtist } = parseVideoTitleAndArtist(snippet.title, snippet.channelTitle);
     const durationSec = parseISO8601Duration(contentDetails?.duration);
     const thumbnails = snippet.thumbnails || {};
-    const coverImage = thumbnails.maxres?.url || thumbnails.high?.url || thumbnails.medium?.url || thumbnails.default?.url || '/images/default-album.webp';
+    const coverImage = thumbnails.maxres?.url || thumbnails.high?.url || thumbnails.medium?.url || thumbnails.default?.url || `https://i.ytimg.com/vi/${details.id}/hqdefault.jpg`;
 
-    return {
+    return normalizeSong({
       id: details.id,
       youtubeVideoId: details.id,
       title: cleanTitle,
@@ -477,11 +594,11 @@ export async function getSong(id) {
       source: 'youtube',
       youtubeUrl: `https://www.youtube.com/watch?v=${details.id}`,
       isPlayable: true
-    };
+    });
   } catch (err) {
     const found = fallbackHindiSongs.find(s => s.id === id || s.youtubeVideoId === id);
-    if (found) return found;
-    return {
+    if (found) return normalizeSong(found);
+    return normalizeSong({
       id,
       youtubeVideoId: id,
       title: "YouTube Video",
@@ -493,7 +610,7 @@ export async function getSong(id) {
       source: "youtube",
       youtubeUrl: `https://www.youtube.com/watch?v=${id}`,
       isPlayable: true
-    };
+    });
   }
 }
 
@@ -509,5 +626,6 @@ export default {
   searchSongs,
   searchArtist,
   getSong,
-  getCategories
+  getCategories,
+  normalizeSong
 };

@@ -2,14 +2,15 @@ import { motion } from 'framer-motion';
 import { useMusic } from '../context/MusicContext.jsx';
 import { useTheme } from '../context/ThemeContext.jsx';
 import { PlayIcon, PauseIcon } from './icons/Icons.jsx';
+import { getSongThumbnail } from '../services/songNormalizer.js';
 
 export default function SongCard({ song, playlist }) {
   const { currentSong, isPlaying, playSong, togglePlay } = useMusic();
   const { theme } = useTheme();
   
-  const songId = song.youtubeVideoId || song.id || song._id;
+  const songId = song?.youtubeVideoId || song?.id || song?._id;
   const currentId = currentSong?.youtubeVideoId || currentSong?.id || currentSong?._id;
-  const isActive = currentId === songId;
+  const isActive = Boolean(songId && currentId && currentId === songId);
 
   const handlePlay = (e) => {
     e.stopPropagation();
@@ -19,6 +20,8 @@ export default function SongCard({ song, playlist }) {
       playSong(song, playlist);
     }
   };
+
+  const thumbnailSrc = getSongThumbnail(song);
 
   return (
     <motion.div
@@ -34,16 +37,22 @@ export default function SongCard({ song, playlist }) {
     >
       <div className="relative aspect-square rounded-lg overflow-hidden mb-3">
         <img 
-          src={song.coverImage || "/images/default-album.webp"} 
-          alt={song.title || "Song Cover"}
+          src={thumbnailSrc} 
+          alt={song?.title || "Song Cover"}
           onError={(e) => {
             e.currentTarget.onerror = null;
-            e.currentTarget.src = "/images/default-album.webp";
+            // Fallback chain: if high-res YouTube failed, try hqdefault, then local default
+            if (song?.youtubeVideoId && !e.currentTarget.src.includes('hqdefault')) {
+              e.currentTarget.src = `https://i.ytimg.com/vi/${song.youtubeVideoId}/hqdefault.jpg`;
+            } else {
+              e.currentTarget.src = "/images/default-album.webp";
+            }
           }}
           className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
         />
         <div className={`absolute inset-0 bg-black/40 flex items-center justify-center transition-opacity duration-300 ${isActive || 'opacity-0 group-hover:opacity-100'}`}>
           <button 
+            type="button"
             className="w-12 h-12 rounded-full text-white flex items-center justify-center transform transition-transform hover:scale-110"
             style={{ 
               backgroundColor: theme.primary,
@@ -61,14 +70,12 @@ export default function SongCard({ song, playlist }) {
             <motion.div animate={{ height: ["40%", "100%", "50%", "70%"] }} transition={{ repeat: Infinity, duration: 0.4 }} className="w-1 rounded-t" style={{ backgroundColor: theme.accent }}></motion.div>
           </div>
         )}
-
-   
       </div>
 
       <div>
-        <h3 className="font-semibold text-base text-white truncate text-glow">{song.title}</h3>
-        <p className="text-gray-300 text-sm truncate font-medium">{song.artist}</p>
-        {song.album && <p className="text-gray-500 text-xs truncate mt-0.5">{song.album}</p>}
+        <h3 className="font-semibold text-base text-white truncate text-glow">{song?.title || 'Untitled Track'}</h3>
+        <p className="text-gray-300 text-sm truncate font-medium">{song?.artist || 'Unknown Artist'}</p>
+        {song?.album && <p className="text-gray-500 text-xs truncate mt-0.5">{song.album}</p>}
       </div>
     </motion.div>
   );
