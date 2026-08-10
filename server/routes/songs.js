@@ -4,6 +4,7 @@ import { getSongs, getSongById, getSongPlayback, getProviderCapabilities } from 
 const router = express.Router();
 
 router.get('/', getSongs);
+router.get('/search', getSongs);
 router.get('/capabilities', getProviderCapabilities);
 router.get('/:id/playback', getSongPlayback);
 router.get('/:id', getSongById);

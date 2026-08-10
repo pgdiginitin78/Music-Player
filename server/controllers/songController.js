@@ -3,28 +3,33 @@ import { getSong as getYouTubeSong } from '../services/providers/youtubeProvider
 
 export const getSongs = async (req, res, next) => {
   try {
-    const { category, query, search, artist, page = 1, limit = 30 } = req.query;
+    const { category, query, search, q, artist, page = 1, limit = 25 } = req.query;
     
+    const searchQuery = q || search || query || '';
+
     const result = await searchSongs({
-      query: search || query || '',
+      query: searchQuery,
       category: category || '',
       artist: artist || '',
-      page,
-      limit
+      page: parseInt(page, 10) || 1,
+      limit: parseInt(limit, 10) || 25
     });
 
-    res.setHeader('X-Total-Count', result.total);
-    res.setHeader('X-Page', result.page);
-    res.setHeader('X-Limit', result.limit);
+    res.setHeader('X-Total-Count', result.total || 0);
+    res.setHeader('X-Page', result.page || 1);
+    res.setHeader('X-Limit', result.limit || 25);
 
     if (req.query.paginated === 'true') {
       return res.status(200).json(result);
     }
 
-    res.status(200).json(result.songs);
+    res.status(200).json(result.songs || []);
   } catch (error) {
-    console.error('Error fetching songs:', error);
-    res.status(500).json({ message: 'Error fetching songs from YouTube provider', error: error.message });
+    console.error('[YOUTUBE SEARCH ERROR]', error.message);
+    res.status(500).json({
+      error: "YOUTUBE_API_ERROR",
+      message: "Unable to load music right now."
+    });
   }
 };
 
@@ -50,8 +55,11 @@ export const getSongById = async (req, res, next) => {
     
     res.status(200).json(track);
   } catch (error) {
-    console.error('Error fetching YouTube track by ID:', error);
-    res.status(500).json({ message: 'Error fetching track', error: error.message });
+    console.error('[YOUTUBE SONG BY ID ERROR]', error.message);
+    res.status(500).json({
+      error: "YOUTUBE_API_ERROR",
+      message: "Unable to load song details right now."
+    });
   }
 };
 
@@ -65,7 +73,6 @@ export const getSongPlayback = async (req, res, next) => {
     const { id } = req.params;
 
     if (!id || id === 'undefined' || id === 'null') {
-      console.error('[PLAYBACK LOOKUP FAIL] Missing or invalid song ID:', id);
       return res.status(404).json({
         error: "SONG_NOT_FOUND",
         message: "Song was not found."
@@ -76,15 +83,11 @@ export const getSongPlayback = async (req, res, next) => {
     try {
       track = await getYouTubeSong(id);
     } catch (providerErr) {
-      console.error('[YOUTUBE PROVIDER FETCH ERROR]', {
-        songId: id,
-        message: providerErr.message,
-        stack: providerErr.stack
-      });
+      console.error('[YOUTUBE PROVIDER FETCH ERROR]', providerErr.message);
 
       return res.status(502).json({
-        error: "PROVIDER_REQUEST_FAILED",
-        message: "Unable to contact YouTube Data API."
+        error: "YOUTUBE_API_ERROR",
+        message: "Unable to load music right now."
       });
     }
 
@@ -118,15 +121,11 @@ export const getSongPlayback = async (req, res, next) => {
     return res.status(200).json(playbackInfo);
 
   } catch (error) {
-    console.error("[PLAYBACK INFO ERROR]", {
-      songId: req.params?.id,
-      message: error.message,
-      stack: error.stack
-    });
+    console.error("[PLAYBACK INFO ERROR]", error.message);
 
     return res.status(500).json({
-      error: "PLAYBACK_INFO_FAILED",
-      message: "Unable to retrieve playback information."
+      error: "YOUTUBE_API_ERROR",
+      message: "Unable to retrieve playback information right now."
     });
   }
 };

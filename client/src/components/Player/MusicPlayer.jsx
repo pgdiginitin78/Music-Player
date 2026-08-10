@@ -12,20 +12,10 @@ export default function MusicPlayer() {
   } = useMusic();
   const { theme } = useTheme();
 
-  const [showVideoContainer, setShowVideoContainer] = useState(true);
-
-  // Initialize YouTube IFrame Player DOM container
+  // Initialize YouTube IFrame Player DOM container persistently
   useEffect(() => {
     initYouTubePlayerContainer('youtube-player-iframe');
   }, [initYouTubePlayerContainer]);
-
-  if (!currentSong) {
-    return (
-      <div className="hidden">
-        <div id="youtube-player-iframe" />
-      </div>
-    );
-  }
 
   const formatTime = (time) => {
     if (!time || isNaN(time)) return "0:00";
@@ -34,7 +24,7 @@ export default function MusicPlayer() {
     return `${minutes}:${seconds < 10 ? '0' : ''}${seconds}`;
   };
 
-  const totalDurationSeconds = actualDuration || (typeof currentSong.duration === 'number' ? currentSong.duration : 210);
+  const totalDurationSeconds = actualDuration || (typeof currentSong?.duration === 'number' ? currentSong.duration : 210);
 
   // Status Banner Message
   const renderStatusBanner = () => {
@@ -86,9 +76,9 @@ export default function MusicPlayer() {
     <AnimatePresence>
       <motion.div
         initial={{ y: 100, opacity: 0 }}
-        animate={{ y: 0, opacity: 1 }}
+        animate={{ y: currentSong ? 0 : 100, opacity: currentSong ? 1 : 0 }}
         exit={{ y: 100, opacity: 0 }}
-        className="fixed bottom-0 left-0 right-0 z-50 p-4"
+        className={`fixed bottom-0 left-0 right-0 z-50 p-4 ${!currentSong ? 'pointer-events-none' : ''}`}
       >
         <div className="glass-panel max-w-6xl mx-auto rounded-2xl p-4 flex flex-col md:flex-row items-center justify-between gap-4 relative overflow-hidden">
           
@@ -99,8 +89,8 @@ export default function MusicPlayer() {
           <div className="flex items-center gap-4 w-full md:w-1/3 mt-2 md:mt-0">
             <div className="w-14 h-14 rounded-lg overflow-hidden flex-shrink-0 shadow-lg shadow-black/50 relative">
               <img 
-                src={currentSong.coverImage || "/images/default-album.webp"} 
-                alt={currentSong.title || "Song Cover"} 
+                src={currentSong?.coverImage || "/images/default-album.webp"} 
+                alt={currentSong?.title || "Song Cover"} 
                 onError={(e) => {
                   e.currentTarget.onerror = null;
                   e.currentTarget.src = "/images/default-album.webp";
@@ -109,15 +99,15 @@ export default function MusicPlayer() {
               />
             </div>
             <div className="min-w-0 flex-1">
-              <h4 className="font-semibold text-white truncate text-glow">{currentSong.title}</h4>
-              <p className="text-sm text-gray-300 font-medium truncate">{currentSong.artist}</p>
+              <h4 className="font-semibold text-white truncate text-glow">{currentSong?.title || 'No Song Selected'}</h4>
+              <p className="text-sm text-gray-300 font-medium truncate">{currentSong?.artist || 'Select a song to start playback'}</p>
               <div className="flex items-center gap-2 mt-0.5">
                 <span className={`text-[10px] font-mono px-1.5 py-0.5 rounded border truncate ${
-                  currentSong.isPlayable === false 
+                  currentSong?.isPlayable === false 
                     ? 'text-amber-300 bg-amber-950/60 border-amber-500/30' 
                     : 'text-emerald-400 bg-emerald-950/60 border-emerald-500/30'
                 }`}>
-                  {currentSong.isPlayable === false 
+                  {currentSong?.isPlayable === false 
                     ? 'Playback Unavailable' 
                     : 'Official YouTube playback'}
                 </span>
@@ -152,15 +142,15 @@ export default function MusicPlayer() {
               </button>
               <button 
                 onClick={togglePlay}
-                disabled={Boolean(currentSong.isPlayable === false)}
+                disabled={Boolean(currentSong?.isPlayable === false)}
                 className={`w-12 h-12 text-white rounded-full flex items-center justify-center transition-transform ${
-                  currentSong.isPlayable === false ? 'opacity-50 cursor-not-allowed' : 'hover:scale-105'
+                  currentSong?.isPlayable === false ? 'opacity-50 cursor-not-allowed' : 'hover:scale-105'
                 }`}
                 style={{ 
                   backgroundColor: theme.primary,
                   boxShadow: `0 4px 15px ${theme.glow}`
                 }}
-                title={currentSong.isPlayable === false ? "PLAY DISABLED - Playback Unavailable" : (isPlaying ? "Pause" : "Play")}
+                title={currentSong?.isPlayable === false ? "PLAY DISABLED - Playback Unavailable" : (isPlaying ? "Pause" : "Play")}
               >
                 {isPlaying ? <PauseIcon className="w-6 h-6" /> : <PlayIcon className="w-6 h-6" />}
               </button>

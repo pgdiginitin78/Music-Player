@@ -1,14 +1,10 @@
-import express from 'express';
-import cors from 'cors';
-import dotenv from 'dotenv';
-import mongoose from 'mongoose';
+import app from './app.js';
 import connectDB from './config/db.js';
-import songRoutes from './routes/songs.js';
-import categoryRoutes from './routes/categories.js';
 import Category from './models/Category.js';
 import Song from './models/Song.js';
+import mongoose from 'mongoose';
 
-// Development Global Process Error Handlers
+// Process Error Handlers
 process.on("uncaughtException", error => {
   console.error("[UNCAUGHT EXCEPTION]", error);
 });
@@ -17,25 +13,13 @@ process.on("unhandledRejection", reason => {
   console.error("[UNHANDLED REJECTION]", reason);
 });
 
-dotenv.config();
+const PORT = process.env.PORT || 5000;
 
-// Log environment variable configuration status
-console.log('[ENV CHECK]', {
-  PORT: process.env.PORT || 5000,
+console.log('[LOCAL SERVER STARTUP]', {
+  PORT,
   MONGODB_URI_configured: Boolean(process.env.MONGODB_URI),
-  YOUTUBE_API_KEY_configured: Boolean(process.env.YOUTUBE_API_KEY),
-  MUSIC_PROVIDER: process.env.MUSIC_PROVIDER || 'youtube'
+  YOUTUBE_API_KEY_configured: Boolean(process.env.YOUTUBE_API_KEY)
 });
-
-const app = express();
-
-// Middleware
-app.use(cors({
-  origin: "*",
-  credentials: false
-}));
-app.use(express.json());
-app.use(express.static('public'));
 
 const requiredCategories = [
   { name: 'For You', slug: 'for-you', description: 'Personalized Hindi vocal selections', wallpaper: '/wallpapers/for-you.svg' },
@@ -54,21 +38,17 @@ const requiredCategories = [
 ];
 
 async function syncCatalog() {
-  if (mongoose.connection.readyState !== 1) {
-    console.log('Skipping MongoDB sync - running in YouTube Data API provider mode.');
-    return;
-  }
+  if (mongoose.connection.readyState !== 1) return;
   try {
     await Category.deleteMany();
     await Category.insertMany(requiredCategories);
-    await Song.deleteMany(); // Purge legacy entries
+    await Song.deleteMany();
     console.log('Catalog categories synchronized successfully.');
   } catch (err) {
     console.error('Error synchronizing catalog categories:', err.message);
   }
 }
 
-// Connect to Database and Sync Categories safely
 connectDB().then(() => {
   if (mongoose.connection.readyState === 1) {
     syncCatalog().catch(err => console.error('Catalog sync error:', err.message));
@@ -79,42 +59,6 @@ connectDB().then(() => {
   console.error('MongoDB connection initialization error:', err.message);
 });
 
-// Basic health check endpoint
-app.get('/api/health', (req, res) => {
-  const isDbConnected = mongoose.connection.readyState === 1;
-  res.status(200).json({
-    status: "ok",
-    server: true,
-    database: isDbConnected,
-    provider: "YouTube Data API v3"
-  });
-});
-
-// Routes
-app.use('/api/songs', songRoutes);
-app.use('/api/categories', categoryRoutes);
-
-// Express Global Error Handler
-app.use((err, req, res, next) => {
-  console.error("[EXPRESS ERROR]", {
-    method: req.method,
-    url: req.originalUrl,
-    message: err.message,
-    stack: err.stack
-  });
-
-  if (res.headersSent) {
-    return next(err);
-  }
-
-  res.status(500).json({
-    error: "INTERNAL_SERVER_ERROR",
-    message: "Music playback service failed."
-  });
-});
-
-const PORT = process.env.PORT || 5000;
-
 app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT} with YouTube provider engine.`);
+  console.log(`Local development server running on port ${PORT} with YouTube provider engine.`);
 });
