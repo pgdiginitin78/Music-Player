@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import SongCard from "../components/SongCard.jsx";
 import {
@@ -34,6 +34,7 @@ export default function Home() {
   const [categories, setCategories] = useState([]);
   const [songs, setSongs] = useState([]);
   const [page, setPage] = useState(1);
+  const pageRef = useRef(1); // stable ref for page — avoids re-creating fetchSongs on page change
   const [hasMore, setHasMore] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedArtist, setSelectedArtist] = useState("");
@@ -60,14 +61,15 @@ export default function Home() {
       ? ""
       : activeCategorySlug;
 
-  // Dynamic search execution against  API
+  // Dynamic search execution against API
   const fetchSongs = useCallback(
     async (isLoadMore = false) => {
       try {
         setLoading(true);
         setError(null);
 
-        const targetPage = isLoadMore ? page + 1 : 1;
+        // Read page from ref — does NOT cause fetchSongs to be recreated on page change
+        const targetPage = isLoadMore ? pageRef.current + 1 : 1;
 
         const params = {
           page: targetPage,
@@ -88,21 +90,25 @@ export default function Home() {
 
         if (isLoadMore) {
           setSongs((prev) => [...prev, ...results]);
+          pageRef.current = targetPage;
           setPage(targetPage);
         } else {
           setSongs(results);
+          pageRef.current = 1;
           setPage(1);
         }
 
         setHasMore(results.length >= 25);
       } catch (err) {
-        console.error("Failed to fetch songs from  API:", err);
-        setError("Unable to retrieve tracks from  Data API.");
+        console.error("Failed to fetch songs from API:", err);
+        setError("Unable to retrieve tracks from YouTube Data API.");
       } finally {
         setLoading(false);
       }
     },
-    [searchQuery, activeCategorySlugNormalized, selectedArtist, page],
+    [searchQuery, activeCategorySlugNormalized, selectedArtist],
+    // NOTE: `page` is intentionally excluded — read via pageRef.current to prevent
+    // an infinite loop where setPage() → new fetchSongs → useEffect → fetchSongs → ...
   );
 
   // Debounced effect when search/filters change

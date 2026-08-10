@@ -1,5 +1,5 @@
 import { AnimatePresence, motion } from 'framer-motion';
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { useMusic } from '../../context/MusicContext.jsx';
 import { useTheme } from '../../context/ThemeContext.jsx';
 import { LyricsIcon, NextIcon, PauseIcon, PlayIcon, PrevIcon, ShuffleIcon, VolumeIcon } from '../icons/Icons.jsx';
@@ -11,11 +11,17 @@ export default function MusicPlayer() {
     isShuffled, setIsShuffled, showLyrics, toggleLyrics, initYouTubePlayerContainer
   } = useMusic();
   const { theme } = useTheme();
+  const hasInitRef = useRef(false);
 
-  // Initialize YouTube IFrame Player DOM container persistently (off-screen)
+  // Initialize YouTube IFrame Player DOM container ONCE (off-screen hidden player)
+  // initYouTubePlayerContainer is stable (stable useCallback in MusicContext),
+  // and the youtubePlayer service has its own _initialized guard.
+  // The hasInitRef here provides a belt-and-suspenders guarantee.
   useEffect(() => {
+    if (hasInitRef.current) return;
+    hasInitRef.current = true;
     initYouTubePlayerContainer('youtube-player-iframe');
-  }, [initYouTubePlayerContainer]);
+  }, []); // empty deps — run once on mount
 
   const formatTime = (time) => {
     if (!time || isNaN(time)) return "0:00";

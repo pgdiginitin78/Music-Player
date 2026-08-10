@@ -26,32 +26,44 @@ export const MusicProvider = ({ children }) => {
 
   const timerRef = useRef(null);
   const skipTimerRef = useRef(null);
+  const currentSongRef = useRef(null);
+  const queueRef = useRef([]);
+  const isShuffledRef = useRef(false);
+  const audioStateRef = useRef('idle');
+
+  // Keep refs in sync with state
+  currentSongRef.current = currentSong;
+  queueRef.current = queue;
+  isShuffledRef.current = isShuffled;
+  audioStateRef.current = audioState;
 
   const getSongId = (song) => song?.youtubeSongId || song?.id || song?._id;
 
   // Clear timers
-  const clearIntervalTimer = () => {
+  const clearIntervalTimer = useCallback(() => {
     if (timerRef.current) {
       clearInterval(timerRef.current);
       timerRef.current = null;
     }
-  };
+  }, []); // stable — no deps
 
-  const clearSkipTimer = () => {
+  const clearSkipTimer = useCallback(() => {
     if (skipTimerRef.current) {
       clearTimeout(skipTimerRef.current);
       skipTimerRef.current = null;
     }
-  };
+  }, []); // stable — no deps
 
   // Synchronize progress & current time from YouTube Player
+  // STABLE: reads currentSong from ref, not from closure state
   const startProgressTracking = useCallback(() => {
     clearIntervalTimer();
     timerRef.current = setInterval(() => {
       if (youtubePlayer) {
         const curTime = youtubePlayer.getCurrentTime() || 0;
-        const dur = youtubePlayer.getDuration() || currentSong?.duration || 0;
-        
+        // Read duration from player first, then fall back to ref
+        const dur = youtubePlayer.getDuration() || currentSongRef.current?.duration || 0;
+
         setCurrentTime(curTime);
         if (dur > 0) {
           setActualDuration(dur);
@@ -59,9 +71,13 @@ export const MusicProvider = ({ children }) => {
         }
       }
     }, 250);
-  }, [currentSong]);
+  }, [clearIntervalTimer]); // stable — does not depend on currentSong state
 
-  // Handle YouTube player state changes
+  // STABLE playNext — reads queue/state from refs, not closures
+  // Forward-declared so handleYTStateChange can reference it
+  const playNextRef = useRef(null);
+
+  // Handle YouTube player state changes — STABLE callback
   const handleYTStateChange = useCallback((ytState) => {
     console.log('[MUSIC CONTEXT] YouTube Player state:', ytState);
     setAutoplayBlocked(false);
@@ -86,7 +102,8 @@ export const MusicProvider = ({ children }) => {
       case YTState.ENDED:
         setAudioState('ended');
         clearIntervalTimer();
-        playNext();
+        // Use ref to avoid stale closure
+        if (playNextRef.current) playNextRef.current();
         break;
 
       case YTState.UNSTARTED:
@@ -96,31 +113,31 @@ export const MusicProvider = ({ children }) => {
       default:
         break;
     }
-  }, [startProgressTracking]);
+  }, [startProgressTracking, clearIntervalTimer]); // stable — startProgressTracking & clearIntervalTimer are stable
 
-  // Handle YouTube errors
+  // Handle YouTube errors — STABLE callback
   const handleYTError = useCallback((errorCode) => {
     console.error('[MUSIC CONTEXT] Song Error Code:', errorCode);
     clearIntervalTimer();
     setAudioState('error');
 
-    let errorMessage = "Playback error occurred.";
+    let errorMessage = 'Playback error occurred.';
     switch (errorCode) {
       case 2:
-        errorMessage = "Invalid Song Song ID.";
+        errorMessage = 'Invalid Song ID.';
         break;
       case 5:
-        errorMessage = "HTML5 Song player error.";
+        errorMessage = 'HTML5 player error.';
         break;
       case 100:
-        errorMessage = "Song not found or removed.";
+        errorMessage = 'Song not found or removed.';
         break;
       case 101:
       case 150:
-        errorMessage = "This Song cannot be played here (embedding disabled).";
+        errorMessage = 'This song cannot be played here (embedding disabled).';
         break;
       case 153:
-        errorMessage = "Unable to initialize Song playback.";
+        errorMessage = 'Unable to initialize playback.';
         break;
       default:
         errorMessage = `Song playback error (${errorCode}).`;
@@ -129,33 +146,37 @@ export const MusicProvider = ({ children }) => {
 
     setPlaybackError(errorMessage);
 
-    // Auto-skip unavailable Song after 1.5s delay
+    // Auto-skip unavailable song after 1.5s delay — use ref to avoid stale closure
     clearSkipTimer();
     skipTimerRef.current = setTimeout(() => {
       console.log('[MUSIC CONTEXT] Auto-skipping unavailable Song...');
-      playNext();
+      if (playNextRef.current) playNextRef.current();
     }, 1500);
-  }, []);
+  }, [clearIntervalTimer, clearSkipTimer]); // stable
 
-  // Initialize YouTube IFrame Player instance
+  /**
+   * Initialize YouTube IFrame Player container — called ONCE on mount.
+   * STABLE: does NOT depend on currentSong, volume, or any changing state.
+   * The player is created once; songs are loaded via loadVideoById().
+   */
   const initYouTubePlayerContainer = useCallback(async (containerId) => {
     try {
-      const SongId = currentSong?.youtubeSongId || currentSong?.id || '';
-      await youtubePlayer.initPlayer(containerId, SongId, {
+      await youtubePlayer.initPlayer(containerId, '', {
         onStateChange: handleYTStateChange,
-        onError: handleYTError
+        onError: handleYTError,
       });
-      if (volume > 0) {
-        youtubePlayer.setVolume(volume * 100);
+      // Apply initial volume after init
+      if (youtubePlayer.isReady) {
+        youtubePlayer.setVolume(100); // default full volume
       }
     } catch (err) {
       console.warn('[MUSIC CONTEXT] Player init notice:', err.message);
     }
-  }, [handleYTStateChange, handleYTError, volume, currentSong]);
+  }, [handleYTStateChange, handleYTError]); // stable — handleYTStateChange & handleYTError are stable
 
-  // Volume & Mute synchronizer
+  // Volume & Mute synchronizer — runs on volume/mute changes only, does NOT reinitialize player
   useEffect(() => {
-    if (youtubePlayer) {
+    if (youtubePlayer && youtubePlayer.isReady) {
       if (isMuted) {
         youtubePlayer.mute();
       } else {
@@ -168,15 +189,16 @@ export const MusicProvider = ({ children }) => {
   /**
    * Play Song Routine
    */
-  const playSong = async (song, playlist = null, isNavigatingHistory = false) => {
+  const playSong = useCallback(async (song, playlist = null, isNavigatingHistory = false) => {
     if (!song) return;
 
     const targetId = getSongId(song);
-    const currentId = getSongId(currentSong);
+    const currentId = getSongId(currentSongRef.current);
 
     // If clicking currently loaded song: toggle play/pause
-    if (currentId === targetId && currentSong) {
-      if (audioState === 'playing') {
+    if (currentId === targetId && currentSongRef.current) {
+      const state = audioStateRef.current;
+      if (state === 'playing') {
         youtubePlayer.pauseSong();
       } else {
         try {
@@ -191,8 +213,8 @@ export const MusicProvider = ({ children }) => {
     }
 
     // Record history
-    if (currentSong && !isNavigatingHistory) {
-      setHistory((prev) => [...prev, currentSong]);
+    if (currentSongRef.current && !isNavigatingHistory) {
+      setHistory((prev) => [...prev, currentSongRef.current]);
     }
 
     if (playlist && Array.isArray(playlist) && playlist.length > 0) {
@@ -219,12 +241,12 @@ export const MusicProvider = ({ children }) => {
         setPlaybackError('Failed to load Song.');
       }
     }
-  };
+  }, [clearSkipTimer]); // stable — reads mutable state via refs
 
-  const togglePlay = () => {
-    if (!currentSong) return;
+  const togglePlay = useCallback(() => {
+    if (!currentSongRef.current) return;
 
-    if (audioState === 'playing') {
+    if (audioStateRef.current === 'playing') {
       youtubePlayer.pauseSong();
     } else {
       try {
@@ -233,22 +255,23 @@ export const MusicProvider = ({ children }) => {
         console.error('[MUSIC CONTEXT] Toggle play error:', err);
       }
     }
-  };
+  }, []); // stable
 
-  const retryPlayback = () => {
-    if (currentSong) {
-      playSong(currentSong);
+  const retryPlayback = useCallback(() => {
+    if (currentSongRef.current) {
+      playSong(currentSongRef.current);
     }
-  };
+  }, [playSong]);
 
-  const playNext = () => {
+  const playNext = useCallback(() => {
+    const queue = queueRef.current;
     if (!queue || queue.length === 0) return;
 
     let nextSong = null;
-    const currentId = getSongId(currentSong);
+    const currentId = getSongId(currentSongRef.current);
     const currentIndex = queue.findIndex((s) => getSongId(s) === currentId);
 
-    if (isShuffled && queue.length > 1) {
+    if (isShuffledRef.current && queue.length > 1) {
       const candidates = queue.filter((s) => getSongId(s) !== currentId);
       nextSong = candidates[Math.floor(Math.random() * candidates.length)];
     } else {
@@ -259,42 +282,51 @@ export const MusicProvider = ({ children }) => {
     if (nextSong) {
       playSong(nextSong);
     }
-  };
+  }, [playSong]); // stable — reads queue & isShuffled from refs
 
-  const playPrev = () => {
-    if (history.length > 0) {
-      const prevSong = history[history.length - 1];
-      setHistory((prev) => prev.slice(0, -1));
-      playSong(prevSong, null, true);
-    } else if (queue.length > 0) {
-      const currentId = getSongId(currentSong);
-      const currentIndex = queue.findIndex((s) => getSongId(s) === currentId);
-      const prevIndex = (currentIndex - 1 + queue.length) % queue.length;
-      playSong(queue[prevIndex], null, true);
-    }
-  };
+  // Keep playNextRef up to date so handleYTStateChange/handleYTError can call it
+  playNextRef.current = playNext;
 
-  const seek = (percentage) => {
-    const totalDur = youtubePlayer.getDuration() || actualDuration || currentSong?.duration || 0;
+  const playPrev = useCallback(() => {
+    setHistory((prev) => {
+      if (prev.length > 0) {
+        const prevSong = prev[prev.length - 1];
+        playSong(prevSong, null, true);
+        return prev.slice(0, -1);
+      } else {
+        const queue = queueRef.current;
+        if (queue.length > 0) {
+          const currentId = getSongId(currentSongRef.current);
+          const currentIndex = queue.findIndex((s) => getSongId(s) === currentId);
+          const prevIndex = (currentIndex - 1 + queue.length) % queue.length;
+          playSong(queue[prevIndex], null, true);
+        }
+        return prev;
+      }
+    });
+  }, [playSong]);
+
+  const seek = useCallback((percentage) => {
+    const totalDur = youtubePlayer.getDuration() || currentSongRef.current?.duration || 0;
     if (totalDur > 0) {
       const seekSeconds = (percentage / 100) * totalDur;
       youtubePlayer.seekTo(seekSeconds, true);
       setProgress(percentage);
       setCurrentTime(seekSeconds);
     }
-  };
+  }, []); // stable
 
-  const setVolumeLevel = (val) => {
+  const setVolumeLevel = useCallback((val) => {
     const clamped = Math.max(0, Math.min(1, val));
     setVolume(clamped);
     if (clamped > 0) {
       setIsMuted(false);
     }
-  };
+  }, []); // stable
 
-  const toggleMute = () => {
+  const toggleMute = useCallback(() => {
     setIsMuted((prev) => !prev);
-  };
+  }, []); // stable
 
   return (
     <MusicContext.Provider
@@ -326,7 +358,7 @@ export const MusicProvider = ({ children }) => {
         seek,
         setIsShuffled,
         setQueue,
-        initYouTubePlayerContainer
+        initYouTubePlayerContainer,
       }}
     >
       {children}

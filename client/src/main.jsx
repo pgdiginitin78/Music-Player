@@ -1,12 +1,12 @@
-import React from 'react'
-import ReactDOM from 'react-dom/client'
-import App from './App.jsx'
-import './index.css'
-import { ThemeProvider } from './context/ThemeContext.jsx'
-import { MusicProvider } from './context/MusicContext.jsx'
-import SmoothScroll from './components/SmoothScroll.jsx'
+import React from "react";
+import ReactDOM from "react-dom/client";
+import App from "./App.jsx";
+import "./index.css";
+import { ThemeProvider } from "./context/ThemeContext.jsx";
+import { MusicProvider } from "./context/MusicContext.jsx";
+import SmoothScroll from "./components/SmoothScroll.jsx";
 
-ReactDOM.createRoot(document.getElementById('root')).render(
+ReactDOM.createRoot(document.getElementById("root")).render(
   <React.StrictMode>
     <ThemeProvider>
       <MusicProvider>
@@ -16,4 +16,4 @@ ReactDOM.createRoot(document.getElementById('root')).render(
       </MusicProvider>
     </ThemeProvider>
   </React.StrictMode>,
-)
+);

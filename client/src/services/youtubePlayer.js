@@ -1,6 +1,9 @@
 /**
  * YouTube IFrame Player API Manager Service
  * Manages YT.Player lifecycle, events, controls, and player state synchronization.
+ *
+ * IMPORTANT: The player is created ONCE and reused for all songs via loadVideoById().
+ * Never call initPlayer() more than once.
  */
 
 export const YTState = {
@@ -9,7 +12,7 @@ export const YTState = {
   PLAYING: 1,
   PAUSED: 2,
   BUFFERING: 3,
-  CUED: 5
+  CUED: 5,
 };
 
 class YouTubePlayerService {
@@ -21,15 +24,30 @@ class YouTubePlayerService {
     this.apiLoaded = false;
     this.pendingVideoId = null;
     this.currentVideoId = null;
+    this._initialized = false; // guard: only create one player instance
+    this._initPromise = null;  // reuse the same init promise if called again
   }
 
   /**
-   * Loads YouTube IFrame API script tag once
+   * Loads YouTube IFrame API script tag ONCE.
+   * Subsequent calls immediately resolve if already loaded.
    */
   loadIFrameAPI() {
     if (this.apiLoaded || window.YT) {
       this.apiLoaded = true;
       return Promise.resolve();
+    }
+
+    // Deduplicate: if the script tag already exists, wait for it
+    if (document.querySelector('script[src="https://www.youtube.com/iframe_api"]')) {
+      return new Promise((resolve) => {
+        const prev = window.onYouTubeIframeAPIReady;
+        window.onYouTubeIframeAPIReady = () => {
+          this.apiLoaded = true;
+          if (prev) prev();
+          resolve();
+        };
+      });
     }
 
     return new Promise((resolve, reject) => {
@@ -40,18 +58,40 @@ class YouTubePlayerService {
 
       const tag = document.createElement('script');
       tag.src = 'https://www.youtube.com/iframe_api';
-      tag.onerror = (err) => reject(new Error('Failed to load YouTube IFrame API script'));
+      tag.onerror = () => reject(new Error('Failed to load YouTube IFrame API script'));
       const firstScriptTag = document.getElementsByTagName('script')[0];
       firstScriptTag?.parentNode?.insertBefore(tag, firstScriptTag);
     });
   }
 
   /**
-   * Initializes YT.Player in specified DOM element ID safely
+   * Initializes YT.Player in specified DOM element ID — ONCE.
+   * If already initialized, returns the existing player immediately.
    */
   async initPlayer(elementId, initialVideoId = '', onEvents = {}) {
+    // ── Guard: never create more than one player instance ──
+    if (this._initialized && this.player) {
+      console.log('[YOUTUBE] Player already initialized — skipping re-init');
+      // Re-wire event handlers in case callbacks changed (harmless)
+      this._onStateChange = onEvents.onStateChange;
+      this._onError = onEvents.onError;
+      return this.player;
+    }
+
+    // ── Deduplicate concurrent calls ──
+    if (this._initPromise) {
+      return this._initPromise;
+    }
+
+    this._initPromise = this._doInitPlayer(elementId, initialVideoId, onEvents);
+    return this._initPromise;
+  }
+
+  async _doInitPlayer(elementId, initialVideoId, onEvents) {
     this.containerId = elementId;
     this.currentVideoId = initialVideoId;
+    this._onStateChange = onEvents.onStateChange;
+    this._onError = onEvents.onError;
 
     await this.loadIFrameAPI();
 
@@ -62,6 +102,7 @@ class YouTubePlayerService {
           return;
         }
 
+        // Safety: destroy any stale player (only on first real init)
         if (this.player && typeof this.player.destroy === 'function') {
           try {
             this.player.destroy();
@@ -72,34 +113,37 @@ class YouTubePlayerService {
           height: '100%',
           width: '100%',
           playerVars: {
-            autoplay: 1,
-            controls: 1,
+            autoplay: 0,       // do NOT autoplay on init — we control this explicitly
+            controls: 0,       // hidden (we have our own UI)
             modestbranding: 1,
             rel: 0,
             enablejsapi: 1,
             origin: typeof window !== 'undefined' ? window.location.origin : '',
-            playsinline: 1
+            playsinline: 1,
           },
           events: {
             onReady: (event) => {
               this.isReady = true;
+              this._initialized = true;
               console.log('[YOUTUBE PLAYER READY]');
               if (this.pendingVideoId) {
                 this.loadVideoById(this.pendingVideoId);
                 this.pendingVideoId = null;
               }
               if (onEvents.onReady) onEvents.onReady(event);
+              resolve(this.player);
             },
             onStateChange: (event) => {
-              if (onEvents.onStateChange) onEvents.onStateChange(event.data);
+              // Always use the LATEST handlers (stored as instance props)
+              if (this._onStateChange) this._onStateChange(event.data);
               this.notifyListeners('stateChange', event.data);
             },
             onError: (event) => {
               console.error('[YOUTUBE PLAYER ERROR]', event.data);
-              if (onEvents.onError) onEvents.onError(event.data);
+              if (this._onError) this._onError(event.data);
               this.notifyListeners('error', event.data);
-            }
-          }
+            },
+          },
         };
 
         // Only pass videoId if a valid non-empty string is provided
@@ -111,9 +155,8 @@ class YouTubePlayerService {
           this.player = new window.YT.Player(elementId, playerOptions);
         } catch (err) {
           console.warn('[YOUTUBE INIT PLAYER WARN]', err.message);
+          resolve(null);
         }
-        
-        resolve(this.player);
       };
 
       createPlayer();
@@ -136,6 +179,11 @@ class YouTubePlayerService {
     }
   }
 
+  // Alias used by MusicContext
+  loadSongById(videoId) {
+    this.loadVideoById(videoId);
+  }
+
   playVideo() {
     if (this.isReady && this.player && typeof this.player.playVideo === 'function') {
       try {
@@ -146,6 +194,11 @@ class YouTubePlayerService {
     }
   }
 
+  // Alias used by MusicContext
+  playSong() {
+    this.playVideo();
+  }
+
   pauseVideo() {
     if (this.isReady && this.player && typeof this.player.pauseVideo === 'function') {
       try {
@@ -154,6 +207,11 @@ class YouTubePlayerService {
         console.error('[YOUTUBE PAUSE ERROR]', e);
       }
     }
+  }
+
+  // Alias used by MusicContext
+  pauseSong() {
+    this.pauseVideo();
   }
 
   seekTo(seconds, allowSeekAhead = true) {
@@ -252,6 +310,8 @@ class YouTubePlayerService {
     }
     this.player = null;
     this.isReady = false;
+    this._initialized = false;
+    this._initPromise = null;
     this.listeners.clear();
   }
 }
