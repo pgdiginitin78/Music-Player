@@ -6,63 +6,118 @@ import { useTheme } from '../../context/ThemeContext.jsx';
 import { CloseIcon, MusicIcon } from '../icons/Icons.jsx';
 import { fetchLyrics, parseYouTubeTitle } from '../../services/lyricsService.js';
 
-/* ─── Component ───────────────────────────────────────────── */
+/* ─────────────────────────────────────────────────────────── */
 export default function BackgroundLyrics() {
-  const { currentSong, currentTime, showLyrics, setShowLyrics } = useMusic();
+  const { currentSong, currentTime, actualDuration, showLyrics, setShowLyrics } = useMusic();
   const { theme } = useTheme();
 
+  // lyrics data
   const [lines, setLines] = useState([]);
-  const [lyricsStatus, setLyricsStatus] = useState('idle'); // 'idle' | 'loading' | 'found' | 'not_found'
+  const [lyricsStatus, setLyricsStatus] = useState('idle'); // idle | loading | found | not_found | error
   const [parsedInfo, setParsedInfo] = useState({ songName: '', artist: '' });
 
+  // refs for Lenis + auto-scroll
   const containerRef = useRef(null);
   const lineRefs = useRef([]);
   const lenisRef = useRef(null);
   const rafRef = useRef(null);
-  const fetchedForRef = useRef(null);
 
-  /* ── Fetch real lyrics when song or panel opens ─────────── */
-  useEffect(() => {
-    if (!currentSong || !showLyrics) return;
+  // request tracking — AbortController + request ID to prevent stale responses
+  const abortRef = useRef(null);
+  const requestIdRef = useRef(0);
+  const retryCountRef = useRef(0);
 
-    const songKey = currentSong._id || currentSong.id || currentSong.youtubeVideoId || currentSong.title;
-    if (fetchedForRef.current === songKey) return;
-    fetchedForRef.current = songKey;
+  /* ── Song key — unique per song ──────────────────────────── */
+  const getSongKey = (song) => [
+    song?.youtubeVideoId || song?._id || song?.id || '',
+    song?.title || '',
+    song?.artist || '',
+  ].join('::');
 
-    const info = parseYouTubeTitle(currentSong.title, currentSong.artist);
+  /* ── Fetch lyrics ──────────────────────────────────────────
+     Called when: song changes OR user presses Retry.
+  ── */
+  const loadLyrics = (song, retryId = 0) => {
+    if (!song || !showLyrics) return;
+
+    // Cancel any in-flight request
+    if (abortRef.current) {
+      abortRef.current.abort();
+    }
+
+    const controller = new AbortController();
+    abortRef.current = controller;
+
+    const myRequestId = ++requestIdRef.current;
+
+    const info = parseYouTubeTitle(song.title, song.artist);
     setParsedInfo(info);
     setLyricsStatus('loading');
     setLines([]);
 
-    fetchLyrics(currentSong).then((result) => {
-      if (result && result.length > 0) {
-        setLines(result);
-        setLyricsStatus('found');
-      } else {
-        setLines([]);
-        setLyricsStatus('not_found');
-      }
-    });
-  }, [currentSong, showLyrics]);
+    fetchLyrics(song, controller.signal)
+      .then((result) => {
+        // Guard: ignore if song changed or a newer request was made
+        if (myRequestId !== requestIdRef.current) return;
 
-  /* ── Reset fetch key on song change ─────────────────────── */
+        if (result && result.length > 0) {
+          setLines(result);
+          setLyricsStatus('found');
+        } else {
+          setLines([]);
+          setLyricsStatus('not_found');
+        }
+      })
+      .catch((err) => {
+        if (myRequestId !== requestIdRef.current) return;
+        if (err?.name === 'AbortError') return; // intentional cancel — ignore
+
+        console.warn('[LYRICS] Fetch error:', err?.message);
+        setLines([]);
+        setLyricsStatus('error');
+      });
+  };
+
+  /* ── Re-fetch when song or panel opens ───────────────────── */
+  const lastSongKeyRef = useRef('');
+
+  useEffect(() => {
+    if (!showLyrics || !currentSong) return;
+
+    const key = getSongKey(currentSong);
+    if (key === lastSongKeyRef.current && lyricsStatus !== 'idle') return; // same song, already fetched
+    lastSongKeyRef.current = key;
+    retryCountRef.current = 0;
+    loadLyrics(currentSong);
+  }, [currentSong, showLyrics]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  /* ── Reset on song change so next open re-fetches ─────────── */
   useEffect(() => {
     if (!currentSong) return;
-    const songKey = currentSong._id || currentSong.id || currentSong.youtubeVideoId || currentSong.title;
-    if (fetchedForRef.current !== songKey) {
-      fetchedForRef.current = null;
+    const key = getSongKey(currentSong);
+    if (key !== lastSongKeyRef.current) {
+      lastSongKeyRef.current = '';
+      setLyricsStatus('idle');
+      setLines([]);
     }
-  }, [currentSong]);
+  }, [currentSong]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  /* ── Active line index ────────────────────────────────────  */
-  const totalDuration = currentSong?.duration || 240;
-  const activeIdx = lines.length > 0
+  /* ── Cleanup abort on unmount ────────────────────────────── */
+  useEffect(() => {
+    return () => { if (abortRef.current) abortRef.current.abort(); };
+  }, []);
+
+  /* ── Active line index ─────────────────────────────────────
+     Use actualDuration from player if available, else song.duration.
+  ── */
+  const totalDuration = (actualDuration > 0 ? actualDuration : currentSong?.duration) || 0;
+  const activeIdx = lines.length > 0 && totalDuration > 0
     ? Math.min(lines.length - 1, Math.max(0, Math.floor((currentTime / totalDuration) * lines.length)))
     : 0;
 
-  /* ── Lenis smooth scroller ───────────────────────────────── */
+  /* ── Lenis smooth scroller ────────────────────────────────── */
   useEffect(() => {
-    if (!showLyrics || !containerRef.current) return;
+    if (!showLyrics || !containerRef.current || lyricsStatus !== 'found') return;
 
     const lenis = new Lenis({
       wrapper: containerRef.current,
@@ -84,20 +139,26 @@ export default function BackgroundLyrics() {
     };
   }, [showLyrics, lyricsStatus]);
 
-  /* ── Auto-scroll to active line ──────────────────────────── */
+  /* ── Auto-scroll to active line ────────────────────────────── */
   useEffect(() => {
-    const activeLine = lineRefs.current[activeIdx];
+    const el = lineRefs.current[activeIdx];
     const container = containerRef.current;
     const lenis = lenisRef.current;
-    if (!activeLine || !container || !lenis) return;
+    if (!el || !container || !lenis) return;
 
-    const targetScrollTop =
-      activeLine.offsetTop - container.clientHeight / 2 + activeLine.offsetHeight / 2;
-    lenis.scrollTo(targetScrollTop, { immediate: false });
+    const target = el.offsetTop - container.clientHeight / 2 + el.offsetHeight / 2;
+    lenis.scrollTo(target, { immediate: false });
   }, [activeIdx]);
 
   if (!showLyrics || !currentSong) return null;
 
+  /* ── Retry handler ─────────────────────────────────────────── */
+  const handleRetry = () => {
+    retryCountRef.current += 1;
+    loadLyrics(currentSong, retryCountRef.current);
+  };
+
+  /* ─── Render ─────────────────────────────────────────────── */
   return (
     <AnimatePresence>
       <motion.div
@@ -108,25 +169,27 @@ export default function BackgroundLyrics() {
         className="fixed inset-0 z-40 flex flex-col pointer-events-auto overflow-hidden"
         style={{ background: 'rgba(0,0,0,0.88)', backdropFilter: 'blur(50px)' }}
       >
-        {/* ── Ambient artwork glow ─────────────────────────── */}
+        {/* Ambient artwork glow */}
         <div
-          className="absolute inset-0 -z-10 opacity-15 scale-125"
+          className="absolute inset-0 -z-10 scale-125"
           style={{
             backgroundImage: `url(${currentSong.coverImage || '/images/default-album.webp'})`,
             backgroundSize: 'cover',
             backgroundPosition: 'center',
             filter: 'blur(70px)',
+            opacity: 0.15,
             transition: 'background-image 1s ease',
           }}
         />
         <div
-          className="absolute inset-0 -z-10 opacity-25"
+          className="absolute inset-0 -z-10"
           style={{
-            background: `radial-gradient(ellipse at 50% 30%, ${theme.primary}99, transparent 65%)`,
+            background: `radial-gradient(ellipse at 50% 30%, ${theme.primary}88, transparent 65%)`,
+            opacity: 0.25,
           }}
         />
 
-        {/* ── Header ──────────────────────────────────────── */}
+        {/* Header */}
         <div className="flex-shrink-0 flex items-center justify-between px-8 py-5 z-20">
           <div className="flex items-center gap-3">
             <div className="w-12 h-12 rounded-xl overflow-hidden shadow-xl border border-white/10 flex-shrink-0">
@@ -163,7 +226,7 @@ export default function BackgroundLyrics() {
           </div>
         </div>
 
-        {/* ── Top / bottom fade masks ──────────────────────── */}
+        {/* Fade masks */}
         <div
           className="absolute left-0 right-0 top-20 h-28 pointer-events-none z-10"
           style={{ background: 'linear-gradient(to bottom, rgba(0,0,0,0.90), transparent)' }}
@@ -173,7 +236,7 @@ export default function BackgroundLyrics() {
           style={{ background: 'linear-gradient(to top, rgba(0,0,0,0.95), transparent)' }}
         />
 
-        {/* ── Loading state ────────────────────────────────── */}
+        {/* ── Loading ── */}
         {lyricsStatus === 'loading' && (
           <div className="flex-1 flex flex-col items-center justify-center gap-4">
             <div
@@ -186,13 +249,13 @@ export default function BackgroundLyrics() {
           </div>
         )}
 
-        {/* ── Not found state ──────────────────────────────── */}
+        {/* ── Not found ── */}
         {lyricsStatus === 'not_found' && (
           <div className="flex-1 flex flex-col items-center justify-center gap-4 px-8 text-center">
             <MusicIcon className="w-12 h-12 text-white/20" />
             <p className="text-lg font-semibold text-white/50">Lyrics not available</p>
             <p className="text-sm text-gray-500 max-w-xs">
-              Could not find lyrics for{' '}
+              No lyrics found for{' '}
               <span className="text-purple-300 font-medium">
                 {parsedInfo.songName || currentSong.title}
               </span>
@@ -200,7 +263,25 @@ export default function BackgroundLyrics() {
           </div>
         )}
 
-        {/* ── Lyrics scroll area ───────────────────────────── */}
+        {/* ── Error ── */}
+        {lyricsStatus === 'error' && (
+          <div className="flex-1 flex flex-col items-center justify-center gap-5 px-8 text-center">
+            <MusicIcon className="w-12 h-12 text-red-400/40" />
+            <p className="text-lg font-semibold text-white/50">Unable to load lyrics</p>
+            <p className="text-sm text-gray-500 max-w-xs">
+              A network or provider error occurred.
+            </p>
+            <button
+              onClick={handleRetry}
+              className="px-5 py-2 rounded-full text-sm font-semibold text-white transition-all hover:scale-105"
+              style={{ background: theme.primary, boxShadow: `0 4px 14px ${theme.glow}` }}
+            >
+              Retry
+            </button>
+          </div>
+        )}
+
+        {/* ── Lyrics scroll ── */}
         {lyricsStatus === 'found' && (
           <>
             <style>{`[data-lyrics-scroller]::-webkit-scrollbar { display: none; }`}</style>
@@ -214,7 +295,7 @@ export default function BackgroundLyrics() {
                 data-lyrics-inner
                 className="flex flex-col items-center gap-7 max-w-2xl mx-auto px-6 md:px-0"
               >
-                {/* Spacer — lets first line reach center */}
+                {/* Spacer — first line can reach center */}
                 <div style={{ height: '45vh', flexShrink: 0 }} />
 
                 {lines.map((line, idx) => {
@@ -225,7 +306,7 @@ export default function BackgroundLyrics() {
 
                   return (
                     <motion.p
-                      key={`${currentSong._id || currentSong.id || 'song'}-${idx}`}
+                      key={`${getSongKey(currentSong)}-${idx}`}
                       ref={(el) => { lineRefs.current[idx] = el; }}
                       animate={{ opacity, scale }}
                       transition={{ duration: 0.4, ease: 'easeOut' }}
@@ -247,7 +328,7 @@ export default function BackgroundLyrics() {
                   );
                 })}
 
-                {/* Spacer — lets last line reach center */}
+                {/* Spacer — last line can reach center */}
                 <div style={{ height: '50vh', flexShrink: 0 }} />
               </div>
             </div>

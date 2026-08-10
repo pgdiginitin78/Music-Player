@@ -5,6 +5,7 @@ import mongoose from 'mongoose';
 import connectDB from './config/db.js';
 import songRoutes from './routes/songs.js';
 import categoryRoutes from './routes/categories.js';
+import lyricsRoutes from './routes/lyricsRoutes.js';
 
 dotenv.config();
 
@@ -49,6 +50,7 @@ app.get('/api/health', (req, res) => {
 // Mount Routes under /api
 app.use('/api/songs', songRoutes);
 app.use('/api/categories', categoryRoutes);
+app.use('/api/lyrics', lyricsRoutes);
 
 // Catch-all route handler for unknown API paths
 app.use('/api/*', (req, res) => {

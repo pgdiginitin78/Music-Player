@@ -1,118 +1,117 @@
 /**
- * LyricsService
- * Fetches real lyrics from lyrics.ovh (free, no API key needed).
- * Cleans YouTube-style noisy titles before searching.
+ * client/src/services/lyricsService.js
+ *
+ * Frontend lyrics service.
+ * All lyrics requests go through the Express backend (/api/lyrics).
+ * No direct browser → lyrics.ovh requests.
  */
 
-const cache = new Map(); // { "artist::title" => string[] | null }
+/* ── Label names that are invalid as artist values ──────── */
+const BLOCKED_ARTISTS = new Set([
+  't-series', 'tseries', 'sony music india', 'zee music company', 'saregama music',
+  'tips official', 'eros now music', 'yrf', 'dharmatic entertainment',
+  'universal music india', 'warner music india', 'junglee music',
+  'speed records', 'desi music factory', 'vyrl originals',
+]);
 
-/**
- * Strip YouTube video title junk:
- * "Full Video: Akh Lad Jaave | Loveyatri | Aayush Sharma ..." → "Akh Lad Jaave"
- */
-function cleanTitle(rawTitle = '') {
-  return rawTitle
-    // Remove common prefixes like "Full Video:", "Official Video:", "Audio:", etc.
-    .replace(/^(full\s*(video|audio|song|lyric[s]?)|official\s*(video|audio|song|lyric[s]?)|lyric[s]?\s*(video|song)?|audio\s*(song)?)\s*[:\-|]?\s*/gi, '')
-    // Remove "| Artist Name" style suffixes (pipe-separated extra info)
-    .replace(/\s*[|]\s*.+$/g, '')
-    // Remove parenthesised info: "(feat. X)", "(2024)", "(4K)", etc.
-    .replace(/\s*\(.*?\)/g, '')
-    // Remove bracketed info: "[Official]", "[4K]", etc.
-    .replace(/\s*\[.*?\]/g, '')
-    .trim();
+function isBlockedArtist(name = '') {
+  return BLOCKED_ARTISTS.has(name.toLowerCase().trim());
 }
 
-/**
- * Clean artist field similarly.
- */
-function cleanArtist(rawArtist = '') {
-  return rawArtist
-    .replace(/\s*[|,&]\s*.+$/g, '') // Take only first artist
+/* ── Title / artist cleaning (mirrors server logic) ─────── */
+const TITLE_PREFIX_RE = /^(full\s*(video|audio|song|lyric[s]?)|official\s*(video|audio|song|lyric[s]?|music\s*video)|lyric[s]?\s*(video|song)?|audio\s*(song|video)?|video\s*song|music\s*video|lyrical\s*(video)?)\s*[:\-|]?\s*/gi;
+
+export function cleanTitle(raw = '') {
+  return raw
+    .replace(TITLE_PREFIX_RE, '')
+    .replace(/\s*[|\-]\s*(official\s*(video|audio|song)|full\s*(video|audio|song)|lyric[s]?\s*(video)?|4[kK]|hd|t[-\s]?series|sony music|zee music|saregama)\s*$/gi, '')
     .replace(/\s*\(.*?\)/g, '')
     .replace(/\s*\[.*?\]/g, '')
     .trim();
 }
 
+export function cleanArtist(raw = '') {
+  return raw
+    .replace(/\s*[,&]\s*.+$/g, '')
+    .replace(/\s*\(.*?\)/g, '')
+    .replace(/\s*\[.*?\]/g, '')
+    .trim();
+}
+
 /**
- * Try to extract song + artist from a YouTube title like:
- * "Akh Lad Jaave | Loveyatri | Aayush Sharma | Warina Hussain | Badshah, Jubin Nautiyal"
- * by splitting on | and picking candidates.
+ * Parse a YouTube title + artist into usable { songName, artist }.
+ * Priority: metadata artist → pipe-extracted artist → empty
  */
-function parseYouTubeTitle(rawTitle = '', rawArtist = '') {
-  const parts = rawTitle.split('|').map((p) => p.trim());
+export function parseYouTubeTitle(rawTitle = '', rawArtist = '') {
+  const parts = rawTitle.split('|').map((p) => p.trim()).filter(Boolean);
+  const songName = cleanTitle(parts[0] || rawTitle);
 
-  let songName = cleanTitle(parts[0] || rawTitle);
-  let artist = cleanArtist(rawArtist);
+  // Use metadata artist if it's valid
+  const metaArtist = cleanArtist(rawArtist);
+  if (metaArtist && metaArtist.length >= 3 && !isBlockedArtist(metaArtist)) {
+    return { songName, artist: metaArtist };
+  }
 
-  // If artist is empty/unknown or just "T-" (truncated), try extracting from title parts
-  if (!artist || artist === 'Unknown Artist' || artist.length < 3) {
-    // Heuristic: last meaningful part is often the artist
-    if (parts.length >= 3) {
-      artist = parts[parts.length - 1].replace(/\s*,\s*.+$/, '').trim(); // first in comma list
+  // Try pipe parts for known artist name patterns
+  const knownPatterns = [
+    /arijit/i, /jubin/i, /badshah/i, /shreya/i, /udit/i, /sonu nigam/i,
+    /sunidhi/i, /armaan/i, /atif/i, /anuv/i, /vishal/i, /pritam/i,
+    /a\.r\. rahman/i, /ar rahman/i, /shankar/i, /amit trivedi/i,
+  ];
+
+  for (let i = 1; i < parts.length; i++) {
+    if (knownPatterns.some((re) => re.test(parts[i])) && !isBlockedArtist(parts[i])) {
+      return { songName, artist: parts[i].split(',')[0].trim() };
     }
   }
 
-  return { songName, artist };
-}
-
-/**
- * Fetch lyrics from lyrics.ovh
- * Returns string[] (one entry per line) or null on failure.
- */
-async function fetchFromLyricsOvh(artist, title) {
-  try {
-    const url = `https://api.lyrics.ovh/v1/${encodeURIComponent(artist)}/${encodeURIComponent(title)}`;
-    const res = await fetch(url, { signal: AbortSignal.timeout(6000) });
-    if (!res.ok) return null;
-    const data = await res.json();
-    if (!data.lyrics) return null;
-
-    // Split into lines, remove empty runs, trim
-    return data.lyrics
-      .split('\n')
-      .map((l) => l.trim())
-      .filter(Boolean);
-  } catch {
-    return null;
+  // Last resort: last non-label part
+  for (let i = parts.length - 1; i >= 1; i--) {
+    const c = parts[i].split(',')[0].trim();
+    if (!isBlockedArtist(c) && c.length >= 3) {
+      return { songName, artist: c };
+    }
   }
+
+  return { songName, artist: '' };
 }
 
+/* ── API call to backend ─────────────────────────────────── */
 /**
- * Main export: fetch lyrics for a song object.
- * song = { title, artist, ... }
- * Returns string[] of lyric lines, or null if unavailable.
+ * Fetch lyrics via Express backend.
+ * Sends raw title + artist — server handles all parsing/fallbacks.
  */
-export async function fetchLyrics(song) {
+async function fetchFromBackend(artist, title, signal) {
+  const params = new URLSearchParams();
+  if (artist) params.set('artist', artist);
+  if (title)  params.set('title',  title);
+  const res = await fetch(`/api/lyrics?${params.toString()}`, { signal });
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  return res.json();
+}
+
+/* ── Main export ─────────────────────────────────────────── */
+/**
+ * Fetch lyrics for a song object.
+ * Sends RAW title + artist to backend — server does all smart parsing.
+ *
+ * @param {{ title: string, artist: string }} song
+ * @param {AbortSignal} [signal]
+ * @returns {Promise<string[] | null>}
+ */
+export async function fetchLyrics(song, signal) {
   if (!song) return null;
 
-  const { songName, artist } = parseYouTubeTitle(song.title, song.artist);
-  const cacheKey = `${artist.toLowerCase()}::${songName.toLowerCase()}`;
+  // Send raw values — backend tries every combination
+  const rawTitle  = (song.title  || '').trim();
+  const rawArtist = (song.artist || '').trim();
 
-  if (cache.has(cacheKey)) {
-    return cache.get(cacheKey);
+  if (!rawTitle && !rawArtist) return null;
+
+  const data = await fetchFromBackend(rawArtist, rawTitle, signal);
+
+  if (data.found && Array.isArray(data.lyrics) && data.lyrics.length > 0) {
+    return data.lyrics;
   }
-
-  let lines = null;
-
-  // Primary attempt: cleaned artist + cleaned song name
-  if (artist && songName) {
-    lines = await fetchFromLyricsOvh(artist, songName);
-  }
-
-  // Fallback 1: try without artist (some songs are indexed differently)
-  if (!lines && songName) {
-    lines = await fetchFromLyricsOvh('hindi', songName);
-  }
-
-  // Fallback 2: try just title as-is with original artist
-  if (!lines && song.title) {
-    lines = await fetchFromLyricsOvh(song.artist || '', cleanTitle(song.title));
-  }
-
-  // Cache result (even null, to avoid hammering)
-  cache.set(cacheKey, lines);
-  return lines;
+  return null;
 }
-
-export { cleanTitle, cleanArtist, parseYouTubeTitle };

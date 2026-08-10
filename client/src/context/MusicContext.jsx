@@ -27,7 +27,7 @@ export const MusicProvider = ({ children }) => {
   const timerRef = useRef(null);
   const skipTimerRef = useRef(null);
 
-  const getSongId = (song) => song?.youtubeVideoId || song?.id || song?._id;
+  const getSongId = (song) => song?.youtubeSongId || song?.id || song?._id;
 
   // Clear timers
   const clearIntervalTimer = () => {
@@ -100,39 +100,39 @@ export const MusicProvider = ({ children }) => {
 
   // Handle YouTube errors
   const handleYTError = useCallback((errorCode) => {
-    console.error('[MUSIC CONTEXT] YouTube Error Code:', errorCode);
+    console.error('[MUSIC CONTEXT] Song Error Code:', errorCode);
     clearIntervalTimer();
     setAudioState('error');
 
     let errorMessage = "Playback error occurred.";
     switch (errorCode) {
       case 2:
-        errorMessage = "Invalid YouTube video ID.";
+        errorMessage = "Invalid Song Song ID.";
         break;
       case 5:
-        errorMessage = "HTML5 YouTube player error.";
+        errorMessage = "HTML5 Song player error.";
         break;
       case 100:
-        errorMessage = "Video not found or removed.";
+        errorMessage = "Song not found or removed.";
         break;
       case 101:
       case 150:
-        errorMessage = "This video cannot be played here (embedding disabled).";
+        errorMessage = "This Song cannot be played here (embedding disabled).";
         break;
       case 153:
-        errorMessage = "Unable to initialize YouTube playback.";
+        errorMessage = "Unable to initialize Song playback.";
         break;
       default:
-        errorMessage = `YouTube playback error (${errorCode}).`;
+        errorMessage = `Song playback error (${errorCode}).`;
         break;
     }
 
     setPlaybackError(errorMessage);
 
-    // Auto-skip unavailable video after 1.5s delay
+    // Auto-skip unavailable Song after 1.5s delay
     clearSkipTimer();
     skipTimerRef.current = setTimeout(() => {
-      console.log('[MUSIC CONTEXT] Auto-skipping unavailable video...');
+      console.log('[MUSIC CONTEXT] Auto-skipping unavailable Song...');
       playNext();
     }, 1500);
   }, []);
@@ -140,8 +140,8 @@ export const MusicProvider = ({ children }) => {
   // Initialize YouTube IFrame Player instance
   const initYouTubePlayerContainer = useCallback(async (containerId) => {
     try {
-      const videoId = currentSong?.youtubeVideoId || currentSong?.id || '';
-      await youtubePlayer.initPlayer(containerId, videoId, {
+      const SongId = currentSong?.youtubeSongId || currentSong?.id || '';
+      await youtubePlayer.initPlayer(containerId, SongId, {
         onStateChange: handleYTStateChange,
         onError: handleYTError
       });
@@ -177,10 +177,10 @@ export const MusicProvider = ({ children }) => {
     // If clicking currently loaded song: toggle play/pause
     if (currentId === targetId && currentSong) {
       if (audioState === 'playing') {
-        youtubePlayer.pauseVideo();
+        youtubePlayer.pauseSong();
       } else {
         try {
-          youtubePlayer.playVideo();
+          youtubePlayer.playSong();
         } catch (err) {
           console.error('[MUSIC CONTEXT] Play error:', err);
           setAudioState('error');
@@ -208,15 +208,15 @@ export const MusicProvider = ({ children }) => {
     setAudioState('loading');
     clearSkipTimer();
 
-    const videoId = song.youtubeVideoId || song.id;
-    if (videoId) {
+    const SongId = song.youtubeSongId || song.id;
+    if (SongId) {
       try {
-        youtubePlayer.loadVideoById(videoId);
-        youtubePlayer.playVideo();
+        youtubePlayer.loadSongById(SongId);
+        youtubePlayer.playSong();
       } catch (err) {
-        console.error('[MUSIC CONTEXT] Load video failed:', err);
+        console.error('[MUSIC CONTEXT] Load Song failed:', err);
         setAudioState('error');
-        setPlaybackError('Failed to load YouTube video.');
+        setPlaybackError('Failed to load Song.');
       }
     }
   };
@@ -225,10 +225,10 @@ export const MusicProvider = ({ children }) => {
     if (!currentSong) return;
 
     if (audioState === 'playing') {
-      youtubePlayer.pauseVideo();
+      youtubePlayer.pauseSong();
     } else {
       try {
-        youtubePlayer.playVideo();
+        youtubePlayer.playSong();
       } catch (err) {
         console.error('[MUSIC CONTEXT] Toggle play error:', err);
       }
