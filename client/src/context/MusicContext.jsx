@@ -22,6 +22,7 @@ export const MusicProvider = ({ children }) => {
   const [actualDuration, setActualDuration] = useState(0);
   const [isShuffled, setIsShuffled] = useState(false);
   const [autoplayBlocked, setAutoplayBlocked] = useState(false);
+  const [showLyrics, setShowLyrics] = useState(false);
 
   const timerRef = useRef(null);
   const skipTimerRef = useRef(null);
@@ -139,7 +140,8 @@ export const MusicProvider = ({ children }) => {
   // Initialize YouTube IFrame Player instance
   const initYouTubePlayerContainer = useCallback(async (containerId) => {
     try {
-      await youtubePlayer.initPlayer(containerId, currentSong?.youtubeVideoId || '', {
+      const videoId = currentSong?.youtubeVideoId || currentSong?.id || '';
+      await youtubePlayer.initPlayer(containerId, videoId, {
         onStateChange: handleYTStateChange,
         onError: handleYTError
       });
@@ -147,7 +149,7 @@ export const MusicProvider = ({ children }) => {
         youtubePlayer.setVolume(volume * 100);
       }
     } catch (err) {
-      console.error('[MUSIC CONTEXT] Player init error:', err);
+      console.warn('[MUSIC CONTEXT] Player init notice:', err.message);
     }
   }, [handleYTStateChange, handleYTError, volume, currentSong]);
 
@@ -311,6 +313,9 @@ export const MusicProvider = ({ children }) => {
         actualDuration,
         isShuffled,
         autoplayBlocked,
+        showLyrics,
+        setShowLyrics,
+        toggleLyrics: () => setShowLyrics(prev => !prev),
         playSong,
         togglePlay,
         retryPlayback,

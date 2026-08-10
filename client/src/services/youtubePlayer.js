@@ -42,12 +42,12 @@ class YouTubePlayerService {
       tag.src = 'https://www.youtube.com/iframe_api';
       tag.onerror = (err) => reject(new Error('Failed to load YouTube IFrame API script'));
       const firstScriptTag = document.getElementsByTagName('script')[0];
-      firstScriptTag.parentNode.insertBefore(tag, firstScriptTag);
+      firstScriptTag?.parentNode?.insertBefore(tag, firstScriptTag);
     });
   }
 
   /**
-   * Initializes YT.Player in specified DOM element ID
+   * Initializes YT.Player in specified DOM element ID safely
    */
   async initPlayer(elementId, initialVideoId = '', onEvents = {}) {
     this.containerId = elementId;
@@ -62,17 +62,22 @@ class YouTubePlayerService {
           return;
         }
 
-        this.player = new window.YT.Player(elementId, {
+        if (this.player && typeof this.player.destroy === 'function') {
+          try {
+            this.player.destroy();
+          } catch (e) {}
+        }
+
+        const playerOptions = {
           height: '100%',
           width: '100%',
-          videoId: initialVideoId || undefined,
           playerVars: {
             autoplay: 1,
             controls: 1,
             modestbranding: 1,
             rel: 0,
             enablejsapi: 1,
-            origin: window.location.origin,
+            origin: typeof window !== 'undefined' ? window.location.origin : '',
             playsinline: 1
           },
           events: {
@@ -86,7 +91,6 @@ class YouTubePlayerService {
               if (onEvents.onReady) onEvents.onReady(event);
             },
             onStateChange: (event) => {
-              console.log('[YOUTUBE PLAYER STATE CHANGE]', event.data);
               if (onEvents.onStateChange) onEvents.onStateChange(event.data);
               this.notifyListeners('stateChange', event.data);
             },
@@ -96,7 +100,19 @@ class YouTubePlayerService {
               this.notifyListeners('error', event.data);
             }
           }
-        });
+        };
+
+        // Only pass videoId if a valid non-empty string is provided
+        if (initialVideoId && typeof initialVideoId === 'string' && initialVideoId.trim() !== '') {
+          playerOptions.videoId = initialVideoId.trim();
+        }
+
+        try {
+          this.player = new window.YT.Player(elementId, playerOptions);
+        } catch (err) {
+          console.warn('[YOUTUBE INIT PLAYER WARN]', err.message);
+        }
+        
         resolve(this.player);
       };
 
@@ -105,16 +121,18 @@ class YouTubePlayerService {
   }
 
   loadVideoById(videoId) {
-    if (!videoId) return;
-    this.currentVideoId = videoId;
+    if (!videoId || typeof videoId !== 'string' || videoId.trim() === '') return;
+    const cleanId = videoId.trim();
+    this.currentVideoId = cleanId;
+
     if (this.isReady && this.player && typeof this.player.loadVideoById === 'function') {
       try {
-        this.player.loadVideoById(videoId);
+        this.player.loadVideoById(cleanId);
       } catch (err) {
         console.error('[YOUTUBE LOAD VIDEO ERROR]', err);
       }
     } else {
-      this.pendingVideoId = videoId;
+      this.pendingVideoId = cleanId;
     }
   }
 
@@ -149,7 +167,6 @@ class YouTubePlayerService {
   }
 
   setVolume(volume) {
-    // volume: 0 to 100
     if (this.isReady && this.player && typeof this.player.setVolume === 'function') {
       try {
         this.player.setVolume(Math.max(0, Math.min(100, volume)));

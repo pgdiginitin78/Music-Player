@@ -62,10 +62,7 @@ export default function SongCard({ song, playlist }) {
           </div>
         )}
 
-        {/* YouTube Badge */}
-        <span className="absolute top-2 left-2 bg-red-950/80 text-red-300 backdrop-blur-md text-[10px] px-2 py-0.5 rounded-full font-medium border border-red-500/30">
-          YouTube
-        </span>
+   
       </div>
 
       <div>

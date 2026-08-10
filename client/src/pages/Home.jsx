@@ -60,7 +60,7 @@ export default function Home() {
       ? ""
       : activeCategorySlug;
 
-  // Dynamic search execution against YouTube API
+  // Dynamic search execution against  API
   const fetchSongs = useCallback(
     async (isLoadMore = false) => {
       try {
@@ -96,8 +96,8 @@ export default function Home() {
 
         setHasMore(results.length >= 25);
       } catch (err) {
-        console.error("Failed to fetch songs from YouTube API:", err);
-        setError("Unable to retrieve tracks from YouTube Data API.");
+        console.error("Failed to fetch songs from  API:", err);
+        setError("Unable to retrieve tracks from  Data API.");
       } finally {
         setLoading(false);
       }
@@ -269,11 +269,11 @@ export default function Home() {
               {searchQuery
                 ? `Results for "${searchQuery}"`
                 : selectedArtist
-                  ? `${selectedArtist} Videos`
-                  : activeCategory?.name || "Popular Hindi Music Videos"}
+                  ? `${selectedArtist} Tracks`
+                  : activeCategory?.name || "Popular Hindi Music"}
             </h2>
             <p className="text-xs text-gray-400 mt-1">
-              Official YouTube Data API v3 • Official YouTube Embedded Player
+              High Quality Audio Engine • Synchronized Lyrics Supported
             </p>
           </div>
 
@@ -320,21 +320,21 @@ export default function Home() {
               className="px-5 py-2.5 rounded-xl font-semibold text-white text-sm"
               style={{ backgroundColor: theme.primary }}
             >
-              Retry YouTube Fetch
+              Retry Music Fetch
             </button>
           </div>
         ) : songs.length === 0 ? (
           <div className="text-center py-16 bg-white/5 rounded-3xl border border-white/10 backdrop-blur-sm px-6">
             <MusicIcon className="w-16 h-16 mx-auto mb-4 text-gray-500 opacity-40" />
             <h3 className="text-lg font-semibold text-white mb-2">
-              No Suitable YouTube Songs Found
+              No Suitable  Songs Found
             </h3>
             <p className="text-sm text-gray-400 max-w-md mx-auto mb-6">
               {activeCategory?.name &&
               activeCategorySlug !== "for-you" &&
               activeCategorySlug !== "default"
-                ? `No suitable ${activeCategory.name} YouTube videos found.`
-                : "No suitable YouTube songs found for your query."}
+                ? `No suitable ${activeCategory.name}  videos found.`
+                : "No suitable  songs found for your query."}
             </p>
             <button
               onClick={handleResetFilters}
@@ -352,7 +352,7 @@ export default function Home() {
               <AnimatePresence>
                 {songs.map((song) => (
                   <SongCard
-                    key={song.youtubeVideoId || song.id || song._id}
+                    key={song.VideoId || song.id || song._id}
                     song={song}
                     playlist={songs}
                   />

@@ -2,6 +2,7 @@ import { AnimatePresence, motion } from 'framer-motion';
 import Home from './pages/Home.jsx';
 import MusicPlayer from './components/Player/MusicPlayer.jsx';
 import SceneBackground from './components/visuals/SceneBackground.jsx';
+import BackgroundLyrics from './components/visuals/BackgroundLyrics.jsx';
 import { useTheme } from './context/ThemeContext.jsx';
 
 function App() {
@@ -26,6 +27,9 @@ function App() {
 
       {/* Cinematic Gradient Overlay */}
       <div className={`fixed inset-0 -z-10 bg-gradient-to-br ${theme.gradient} transition-colors duration-1000`} />
+
+      {/* Synchronized Ambient Background Lyrics Layer */}
+      <BackgroundLyrics />
 
       <main className="container mx-auto px-4 md:px-8 py-8 relative z-10">
         <Home />
