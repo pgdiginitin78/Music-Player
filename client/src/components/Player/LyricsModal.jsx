@@ -74,7 +74,6 @@ const lyricsDatabase = {
 export default function LyricsModal({ isOpen, onClose, currentSong, currentTime, theme }) {
   if (!isOpen || !currentSong) return null;
 
-  // Get matching lyrics or generate formatted lines based on song details
   const getLyrics = () => {
     const titleLower = (currentSong.title || '').toLowerCase();
     for (const [key, lines] of Object.entries(lyricsDatabase)) {
@@ -83,7 +82,6 @@ export default function LyricsModal({ isOpen, onClose, currentSong, currentTime,
       }
     }
 
-    // Default formatted lyrics fallback for any YouTube song
     return [
       `♪ ${currentSong.title || 'Song'} ♪`,
       `Artist: ${currentSong.artist || 'Unknown Artist'}`,
@@ -178,7 +176,7 @@ export default function LyricsModal({ isOpen, onClose, currentSong, currentTime,
           {/* Footer Note */}
           <div className="pt-4 border-t border-white/10 text-xs text-gray-400 flex items-center justify-between">
             <span>Synchronized Lyrics</span>
-            <span className="font-mono text-purple-300">YouTube Audio Engine</span>
+            <span className="font-mono text-purple-300">Audio Engine</span>
           </div>
         </motion.div>
       </div>
