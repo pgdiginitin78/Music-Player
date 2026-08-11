@@ -3,7 +3,7 @@ import { getSong as getYouTubeSong, normalizeSong } from '../services/providers/
 
 export const getSongs = async (req, res, next) => {
   try {
-    const { category, query, search, q, artist, page = 1, limit = 25 } = req.query;
+    const { category, query, search, q, artist, page = 1, limit = Infinity } = req.query;
     
     const searchQuery = q || search || query || '';
 
@@ -12,7 +12,7 @@ export const getSongs = async (req, res, next) => {
       category: category || '',
       artist: artist || '',
       page: parseInt(page, 10) || 1,
-      limit: parseInt(limit, 10) || 25
+      limit: parseInt(limit, 10) || Infinity
     });
 
     const rawSongs = result?.songs || [];
@@ -34,7 +34,7 @@ export const getSongs = async (req, res, next) => {
 
     res.setHeader('X-Total-Count', result?.total || normalizedSongs.length);
     res.setHeader('X-Page', result?.page || 1);
-    res.setHeader('X-Limit', result?.limit || 25);
+    res.setHeader('X-Limit', result?.limit || Infinity);
 
     if (req.query.paginated === 'true') {
       return res.status(200).json({

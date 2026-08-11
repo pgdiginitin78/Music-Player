@@ -8,10 +8,6 @@ export function normalizeSong(raw) {
   const rawCover = raw.coverImage || raw.thumbnail || raw.cover || '';
   let coverImage = (typeof rawCover === 'string' && rawCover.trim() !== '' && !rawCover.includes('undefined') && !rawCover.includes('null')) ? rawCover.trim() : '';
 
-  if (!coverImage && cleanYId) {
-    coverImage = `https://i.ytimg.com/vi/${cleanYId}/hqdefault.jpg`;
-  }
-
   if (!coverImage) {
     coverImage = '/images/default-album.webp';
   }
@@ -44,11 +40,6 @@ export function getSongThumbnail(song) {
   const cover = song.coverImage || song.thumbnail || song.cover;
   if (cover && typeof cover === 'string' && cover.trim() !== '' && !cover.includes('undefined') && !cover.includes('null')) {
     return cover.trim();
-  }
-
-  const yId = song.youtubeVideoId || song.id;
-  if (yId && typeof yId === 'string' && yId.trim() !== '' && yId !== 'undefined' && yId !== 'null') {
-    return `https://i.ytimg.com/vi/${yId.trim()}/hqdefault.jpg`;
   }
 
   return "/images/default-album.webp";

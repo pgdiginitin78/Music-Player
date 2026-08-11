@@ -9,7 +9,7 @@ export default function MusicPlayer() {
   const { 
     currentSong, audioState, isPlaying, playbackError, togglePlay, retryPlayback, playNext, playPrev, 
     progress, volume, isMuted, setVolume, toggleMute, seek, currentTime, actualDuration,
-    isShuffled, setIsShuffled, showLyrics, toggleLyrics, initYouTubePlayerContainer
+    isShuffled, setIsShuffled, showLyrics, toggleLyrics, initYouTubePlayerContainer, playerReady
   } = useMusic();
   const { theme } = useTheme();
   const hasInitRef = useRef(false);
@@ -105,11 +105,7 @@ export default function MusicPlayer() {
                   alt={currentSong?.title || "Song Cover"} 
                   onError={(e) => {
                     e.currentTarget.onerror = null;
-                    if (currentSong?.youtubeVideoId && !e.currentTarget.src.includes('hqdefault')) {
-                      e.currentTarget.src = `https://i.ytimg.com/vi/${currentSong.youtubeVideoId}/hqdefault.jpg`;
-                    } else {
-                      e.currentTarget.src = "/images/default-album.webp";
-                    }
+                    e.currentTarget.src = "/images/default-album.webp";
                   }}
                   className="w-full h-full object-cover" 
                 />
@@ -139,15 +135,15 @@ export default function MusicPlayer() {
                 <button 
                   type="button"
                   onClick={togglePlay}
-                  disabled={Boolean(currentSong?.isPlayable === false)}
+                  disabled={Boolean(currentSong?.isPlayable === false) || !playerReady}
                   className={`w-12 h-12 text-white rounded-full flex items-center justify-center transition-transform ${
-                    currentSong?.isPlayable === false ? 'opacity-50 cursor-not-allowed' : 'hover:scale-105'
+                    (currentSong?.isPlayable === false || !playerReady) ? 'opacity-50 cursor-not-allowed' : 'hover:scale-105'
                   }`}
                   style={{ 
                     backgroundColor: theme.primary,
                     boxShadow: `0 4px 15px ${theme.glow}`
                   }}
-                  title={currentSong?.isPlayable === false ? "PLAY DISABLED" : (isPlaying ? "Pause" : "Play")}
+                  title={currentSong?.isPlayable === false ? "PLAY DISABLED" : (!playerReady ? "Player Loading..." : (isPlaying ? "Pause" : "Play"))}
                 >
                   {isPlaying ? <PauseIcon className="w-6 h-6" /> : <PlayIcon className="w-6 h-6" />}
                 </button>

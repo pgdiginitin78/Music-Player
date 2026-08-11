@@ -1,7 +1,7 @@
 import mongoose from 'mongoose';
 import YouTubeCache from '../../models/YouTubeCache.js';
 
-const CACHE_VERSION = 'v4';
+const CACHE_VERSION = 'v6';
 
 const categoryQueries = {
   'for-you': ['Hindi songs official', 'Bollywood hits official'],
@@ -31,10 +31,6 @@ export function normalizeSong(raw) {
   const rawCover = raw.coverImage || raw.thumbnail || raw.cover || '';
   let coverImage = (typeof rawCover === 'string' && rawCover.trim() !== '' && !rawCover.includes('undefined') && !rawCover.includes('null')) ? rawCover.trim() : '';
 
-  if (!coverImage && cleanYId) {
-    coverImage = `https://i.ytimg.com/vi/${cleanYId}/hqdefault.jpg`;
-  }
-
   if (!coverImage) {
     coverImage = '/images/default-album.webp';
   }
@@ -63,7 +59,7 @@ const fallbackHindiSongs = [
     artist: "Arijit Singh, Pritam, Amitabh Bhattacharya",
     album: "Brahmāstra",
     category: "romantic-hindi",
-    coverImage: "https://i.ytimg.com/vi/dTU413E74g0/hqdefault.jpg",
+    coverImage: "/images/default-album.webp",
     duration: 268,
     source: "youtube",
     youtubeUrl: "https://www.youtube.com/watch?v=dTU413E74g0",
@@ -76,7 +72,7 @@ const fallbackHindiSongs = [
     artist: "Arijit Singh, Sachin-Jigar",
     album: "Bhediya",
     category: "bollywood-hits",
-    coverImage: "https://i.ytimg.com/vi/V7LwfY5U_BU/hqdefault.jpg",
+    coverImage: "/images/default-album.webp",
     duration: 261,
     source: "youtube",
     youtubeUrl: "https://www.youtube.com/watch?v=V7LwfY5U_BU",
@@ -89,7 +85,7 @@ const fallbackHindiSongs = [
     artist: "Anuv Jain",
     album: "Husn",
     category: "indie-hindi",
-    coverImage: "https://i.ytimg.com/vi/kY0a7L_n2i0/hqdefault.jpg",
+    coverImage: "/images/default-album.webp",
     duration: 218,
     source: "youtube",
     youtubeUrl: "https://www.youtube.com/watch?v=kY0a7L_n2i0",
@@ -102,7 +98,7 @@ const fallbackHindiSongs = [
     artist: "Arijit Singh, Shilpa Rao, Anirudh Ravichander",
     album: "Jawan",
     category: "trending-hindi",
-    coverImage: "https://i.ytimg.com/vi/NbyHNASFi6U/hqdefault.jpg",
+    coverImage: "/images/default-album.webp",
     duration: 200,
     source: "youtube",
     youtubeUrl: "https://www.youtube.com/watch?v=NbyHNASFi6U",
@@ -115,7 +111,7 @@ const fallbackHindiSongs = [
     artist: "Sachin-Jigar, Raghav Chaitanya",
     album: "TBMAUJ",
     category: "latest-hindi",
-    coverImage: "https://i.ytimg.com/vi/A66TYFzyJtU/hqdefault.jpg",
+    coverImage: "/images/default-album.webp",
     duration: 264,
     source: "youtube",
     youtubeUrl: "https://www.youtube.com/watch?v=A66TYFzyJtU",
@@ -128,7 +124,7 @@ const fallbackHindiSongs = [
     artist: "Arijit Singh, Pritam",
     album: "Dunki",
     category: "for-you",
-    coverImage: "https://i.ytimg.com/vi/2qZ_m9953i0/hqdefault.jpg",
+    coverImage: "/images/default-album.webp",
     duration: 233,
     source: "youtube",
     youtubeUrl: "https://www.youtube.com/watch?v=2qZ_m9953i0",
@@ -141,7 +137,7 @@ const fallbackHindiSongs = [
     artist: "Arijit Singh, Mithoon",
     album: "Aashiqui 2",
     category: "sad-hindi",
-    coverImage: "https://i.ytimg.com/vi/gVyR56wZ0v8/hqdefault.jpg",
+    coverImage: "/images/default-album.webp",
     duration: 262,
     source: "youtube",
     youtubeUrl: "https://www.youtube.com/watch?v=gVyR56wZ0v8",
@@ -154,7 +150,7 @@ const fallbackHindiSongs = [
     artist: "Vishal Mishra, Raj Shekhar",
     album: "Animal",
     category: "lo-fi-hindi",
-    coverImage: "https://i.ytimg.com/vi/f6vY6t0_d6U/hqdefault.jpg",
+    coverImage: "/images/default-album.webp",
     duration: 261,
     source: "youtube",
     youtubeUrl: "https://www.youtube.com/watch?v=f6vY6t0_d6U",
@@ -167,7 +163,7 @@ const fallbackHindiSongs = [
     artist: "Lata Mangeshkar",
     album: "Retro Gold",
     category: "old-hindi",
-    coverImage: "https://i.ytimg.com/vi/TFr6G5zveS8/hqdefault.jpg",
+    coverImage: "/images/default-album.webp",
     duration: 255,
     source: "youtube",
     youtubeUrl: "https://www.youtube.com/watch?v=TFr6G5zveS8",
@@ -180,7 +176,7 @@ const fallbackHindiSongs = [
     artist: "Arijit Singh, Shilpa Rao",
     album: "War",
     category: "party-hindi",
-    coverImage: "https://i.ytimg.com/vi/qFknatn-dG0/hqdefault.jpg",
+    coverImage: "/images/default-album.webp",
     duration: 302,
     source: "youtube",
     youtubeUrl: "https://www.youtube.com/watch?v=qFknatn-dG0",
@@ -193,7 +189,7 @@ const fallbackHindiSongs = [
     artist: "Siddharth Mahadevan",
     album: "Bhaag Milkha Bhaag",
     category: "workout-hindi",
-    coverImage: "https://i.ytimg.com/vi/eK9j8A_w2wY/hqdefault.jpg",
+    coverImage: "/images/default-album.webp",
     duration: 211,
     source: "youtube",
     youtubeUrl: "https://www.youtube.com/watch?v=eK9j8A_w2wY",
@@ -206,7 +202,7 @@ const fallbackHindiSongs = [
     artist: "Anuv Jain",
     album: "Baarishein",
     category: "rain-hindi",
-    coverImage: "https://i.ytimg.com/vi/BBAyR4n0p-g/hqdefault.jpg",
+    coverImage: "/images/default-album.webp",
     duration: 207,
     source: "youtube",
     youtubeUrl: "https://www.youtube.com/watch?v=BBAyR4n0p-g",
@@ -219,13 +215,35 @@ const fallbackHindiSongs = [
     artist: "Prateek Kuhad",
     album: "Acoustic Hits",
     category: "acoustic-hindi",
-    coverImage: "https://i.ytimg.com/vi/0G483N8jYw0/hqdefault.jpg",
+    coverImage: "/images/default-album.webp",
     duration: 240,
     source: "youtube",
     youtubeUrl: "https://www.youtube.com/watch?v=0G483N8jYw0",
     isPlayable: true
   }
 ];
+
+async function getVerifiedThumbnail(thumbnails) {
+  if (!thumbnails) return '/images/default-album.webp';
+  
+  const sizes = ['maxres', 'standard', 'high', 'medium', 'default'];
+  
+  for (const size of sizes) {
+    const url = thumbnails[size]?.url;
+    if (url) {
+      try {
+        const res = await fetch(url, { method: 'HEAD' });
+        if (res.status === 200) {
+          return url;
+        }
+      } catch (err) {
+        // continue
+      }
+    }
+  }
+  
+  return '/images/default-album.webp';
+}
 
 // In-memory cache fallback if MongoDB is disconnected
 const inMemoryCache = new Map();
@@ -288,7 +306,7 @@ export function parseVideoTitleAndArtist(title, channelTitle) {
  */
 function isPlayableSongVideo(snippet, contentDetails, status) {
   if (status) {
-    if (status.embeddable === false) return false;
+    if (status.embeddable !== true) return false;
     if (status.privacyStatus && status.privacyStatus !== 'public') return false;
     if (status.uploadStatus && status.uploadStatus !== 'processed') return false;
   }
@@ -334,7 +352,7 @@ function getFallbackSongsForCategory(categorySlug = 'for-you') {
 /**
  * Query YouTube Data API v3 search.list and videos.list with graceful fallback
  */
-export async function searchYouTubeVideos(query, categorySlug = 'for-you', limit = 25, pageToken = '') {
+export async function searchYouTubeVideos(query, categorySlug = 'for-you', limit = Infinity, pageToken = '') {
   const apiKey = process.env.YOUTUBE_API_KEY?.trim();
 
   if (!apiKey) {
@@ -371,109 +389,120 @@ export async function searchYouTubeVideos(query, categorySlug = 'for-you', limit
   }
 
   try {
-    const searchUrl = new URL('https://www.googleapis.com/youtube/v3/search');
-    searchUrl.searchParams.append('part', 'snippet');
-    searchUrl.searchParams.append('type', 'video');
-    searchUrl.searchParams.append('videoCategoryId', '10');
-    searchUrl.searchParams.append('q', query);
-    searchUrl.searchParams.append('maxResults', String(Math.min(limit, 50)));
-    searchUrl.searchParams.append('key', apiKey);
-    if (pageToken) {
-      searchUrl.searchParams.append('pageToken', pageToken);
-    }
-
-    let searchRes = await fetch(searchUrl.toString());
-    if (!searchRes.ok) {
-      searchUrl.searchParams.delete('videoCategoryId');
-      searchRes = await fetch(searchUrl.toString());
-      if (!searchRes.ok) {
-        throw new Error(`YouTube API search status ${searchRes.status}`);
-      }
-    }
-
-    const searchData = await searchRes.json();
-    const rawItems = searchData.items || [];
-    const nextPageToken = searchData.nextPageToken || null;
-
-    if (rawItems.length === 0) {
-      const fallbackList = getFallbackSongsForCategory(categorySlug);
-      return { songs: fallbackList, total: fallbackList.length, page: 1, limit, nextPageToken: null };
-    }
-
-    const videoIds = rawItems.map(item => item.id?.videoId).filter(Boolean);
-
-    if (videoIds.length === 0) {
-      const fallbackList = getFallbackSongsForCategory(categorySlug);
-      return { songs: fallbackList, total: fallbackList.length, page: 1, limit, nextPageToken: null };
-    }
-
-    const videoDetailsUrl = new URL('https://www.googleapis.com/youtube/v3/videos');
-    videoDetailsUrl.searchParams.append('part', 'snippet,contentDetails,status');
-    videoDetailsUrl.searchParams.append('id', videoIds.join(','));
-    videoDetailsUrl.searchParams.append('key', apiKey);
-
-    const videoDetailsRes = await fetch(videoDetailsUrl.toString());
-    if (!videoDetailsRes.ok) {
-      throw new Error(`YouTube API videos.list status ${videoDetailsRes.status}`);
-    }
-
-    const videoDetailsData = await videoDetailsRes.json();
-    const videoMap = new Map((videoDetailsData.items || []).map(v => [v.id, v]));
-
     const normalizedSongs = [];
+    let currentToken = pageToken;
+    let pagesFetched = 0;
+    const maxPages = limit > 50 ? 5 : 1; // if limit is large (like Infinity), fetch up to 5 pages (~250 raw results)
+    const targetSongCount = limit === Infinity ? 60 : limit; 
+    let nextTokenToReturn = null;
 
-    for (const rawItem of rawItems) {
-      const videoId = rawItem.id?.videoId;
-      if (!videoId) continue;
+    while (normalizedSongs.length < targetSongCount && pagesFetched < maxPages) {
+      const searchUrl = new URL('https://www.googleapis.com/youtube/v3/search');
+      searchUrl.searchParams.append('part', 'snippet');
+      searchUrl.searchParams.append('type', 'video');
+      searchUrl.searchParams.append('videoCategoryId', '10');
+      searchUrl.searchParams.append('q', query);
+      searchUrl.searchParams.append('maxResults', String(Math.min(targetSongCount - normalizedSongs.length + 15, 50))); // fetch up to 50 at a time
+      searchUrl.searchParams.append('key', apiKey);
+      if (currentToken) {
+        searchUrl.searchParams.append('pageToken', currentToken);
+      }
 
-      const details = videoMap.get(videoId);
-      if (!details) continue;
+      let searchRes = await fetch(searchUrl.toString());
+      if (!searchRes.ok) {
+        searchUrl.searchParams.delete('videoCategoryId');
+        searchRes = await fetch(searchUrl.toString());
+        if (!searchRes.ok) {
+          throw new Error(`YouTube API search status ${searchRes.status}`);
+        }
+      }
 
-      const snippet = details.snippet || rawItem.snippet;
-      const contentDetails = details.contentDetails;
-      const status = details.status;
+      const searchData = await searchRes.json();
+      const rawItems = searchData.items || [];
+      const nextPageToken = searchData.nextPageToken || null;
+      nextTokenToReturn = nextPageToken;
+      pagesFetched++;
 
-      if (!isPlayableSongVideo(snippet, contentDetails, status)) {
+      if (rawItems.length === 0) {
+        break;
+      }
+
+      const videoIds = rawItems.map(item => item.id?.videoId).filter(Boolean);
+      if (videoIds.length === 0) {
+        currentToken = nextPageToken;
+        if (!currentToken) break;
         continue;
       }
 
-      const { title: cleanTitle, artist: cleanArtist } = parseVideoTitleAndArtist(snippet.title, snippet.channelTitle);
-      const durationSec = parseISO8601Duration(contentDetails?.duration);
+      const videoDetailsUrl = new URL('https://www.googleapis.com/youtube/v3/videos');
+      videoDetailsUrl.searchParams.append('part', 'snippet,contentDetails,status');
+      videoDetailsUrl.searchParams.append('id', videoIds.join(','));
+      videoDetailsUrl.searchParams.append('key', apiKey);
 
-      const thumbnails = snippet.thumbnails || {};
-      const coverImage = thumbnails.maxres?.url ||
-                         thumbnails.high?.url ||
-                         thumbnails.medium?.url ||
-                         thumbnails.default?.url ||
-                         `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`;
-
-      const songObj = normalizeSong({
-        id: videoId,
-        youtubeVideoId: videoId,
-        title: cleanTitle,
-        artist: cleanArtist,
-        album: snippet.channelTitle || 'YouTube Music',
-        category: categorySlug,
-        coverImage: coverImage,
-        duration: durationSec,
-        source: 'youtube',
-        youtubeUrl: `https://www.youtube.com/watch?v=${videoId}`,
-        isPlayable: true
-      });
-
-      if (songObj) {
-        normalizedSongs.push(songObj);
+      const videoDetailsRes = await fetch(videoDetailsUrl.toString());
+      if (!videoDetailsRes.ok) {
+        throw new Error(`YouTube API videos.list status ${videoDetailsRes.status}`);
       }
+
+      const videoDetailsData = await videoDetailsRes.json();
+      const videoMap = new Map((videoDetailsData.items || []).map(v => [v.id, v]));
+
+      for (const rawItem of rawItems) {
+        const videoId = rawItem.id?.videoId;
+        if (!videoId) continue;
+
+        const details = videoMap.get(videoId);
+        if (!details) continue;
+
+        const snippet = details.snippet || rawItem.snippet;
+        const contentDetails = details.contentDetails;
+        const status = details.status;
+
+        if (!isPlayableSongVideo(snippet, contentDetails, status)) {
+          continue;
+        }
+
+        const { title: cleanTitle, artist: cleanArtist } = parseVideoTitleAndArtist(snippet.title, snippet.channelTitle);
+        const durationSec = parseISO8601Duration(contentDetails?.duration);
+
+        const thumbnails = snippet.thumbnails || {};
+        const coverImage = await getVerifiedThumbnail(thumbnails);
+
+        const songObj = normalizeSong({
+          id: videoId,
+          youtubeVideoId: videoId,
+          title: cleanTitle,
+          artist: cleanArtist,
+          album: snippet.channelTitle || 'YouTube Music',
+          category: categorySlug,
+          coverImage: coverImage,
+          duration: durationSec,
+          source: 'youtube',
+          youtubeUrl: `https://www.youtube.com/watch?v=${videoId}`,
+          isPlayable: true
+        });
+
+        if (songObj && !normalizedSongs.some(s => s.id === songObj.id)) {
+          normalizedSongs.push(songObj);
+        }
+      }
+
+      if (!nextPageToken) break;
+      currentToken = nextPageToken;
     }
 
-    const finalSongs = normalizedSongs.length > 0 ? normalizedSongs : getFallbackSongsForCategory(categorySlug);
+    let finalSongs = normalizedSongs.length > 0 ? normalizedSongs : getFallbackSongsForCategory(categorySlug);
+    // Cap strictly to targetSongCount
+    if (finalSongs.length > targetSongCount) {
+      finalSongs = finalSongs.slice(0, targetSongCount);
+    }
 
     const result = {
       songs: finalSongs,
       total: finalSongs.length,
       page: 1,
       limit,
-      nextPageToken
+      nextPageToken: nextTokenToReturn
     };
 
     const ttlMs = 24 * 60 * 60 * 1000;
@@ -486,7 +515,7 @@ export async function searchYouTubeVideos(query, categorySlug = 'for-you', limit
             query,
             category: categorySlug,
             results: finalSongs,
-            nextPageToken,
+            nextPageToken: nextTokenToReturn,
             expiresAt: new Date(Date.now() + ttlMs)
           },
           { upsert: true }
@@ -508,22 +537,43 @@ export async function searchYouTubeVideos(query, categorySlug = 'for-you', limit
 /**
  * Provider interface method: searchSongs
  */
-export async function searchSongs({ query = '', category = '', artist = '', page = 1, limit = 25 }) {
-  let searchQuery = '';
+export async function searchSongs({ query = '', category = '', artist = '', page = 1, limit = Infinity }) {
+  const categorySlug = category || 'for-you';
 
   if (artist) {
-    searchQuery = `${artist} official songs`;
+    return await searchYouTubeVideos(`${artist} official songs`, categorySlug, limit);
   } else if (query) {
-    searchQuery = `${query} Hindi songs official`;
-  } else if (category && categoryQueries[category]) {
-    const queries = categoryQueries[category];
-    searchQuery = queries[0]; // deterministic query for consistent caching & results
+    return await searchYouTubeVideos(`${query} Hindi songs official`, categorySlug, limit);
   } else {
-    searchQuery = 'Bollywood Hindi hits official';
+    const queries = categoryQueries[categorySlug] || ['Bollywood Hindi hits official'];
+    
+    if (limit > 50 && queries.length > 1) {
+      const halfLimit = Math.ceil(limit / queries.length);
+      const results = await Promise.all(queries.map(q => searchYouTubeVideos(q, categorySlug, halfLimit)));
+      
+      const combinedSongs = [];
+      const seenIds = new Set();
+      
+      for (const res of results) {
+        for (const song of res.songs) {
+          if (!seenIds.has(song.id)) {
+            seenIds.add(song.id);
+            combinedSongs.push(song);
+          }
+        }
+      }
+      
+      return {
+        songs: combinedSongs.slice(0, limit),
+        total: combinedSongs.length,
+        page: 1,
+        limit,
+        nextPageToken: results[0]?.nextPageToken || null
+      };
+    } else {
+      return await searchYouTubeVideos(queries[0], categorySlug, limit);
+    }
   }
-
-  const categorySlug = category || 'for-you';
-  return await searchYouTubeVideos(searchQuery, categorySlug, limit);
 }
 
 /**
@@ -541,7 +591,7 @@ export async function getSong(id) {
       artist: "YouTube Artist",
       album: "YouTube Music",
       category: "for-you",
-      coverImage: `https://i.ytimg.com/vi/${id}/hqdefault.jpg`,
+      coverImage: `/images/default-album.webp`,
       duration: 240,
       source: "youtube",
       youtubeUrl: `https://www.youtube.com/watch?v=${id}`,
@@ -573,14 +623,14 @@ export async function getSong(id) {
     const contentDetails = details.contentDetails;
     const status = details.status;
 
-    if (status && status.embeddable === false) {
+    if (status && status.embeddable !== true) {
       return normalizeSong({ id, youtubeVideoId: id, isPlayable: false });
     }
 
     const { title: cleanTitle, artist: cleanArtist } = parseVideoTitleAndArtist(snippet.title, snippet.channelTitle);
     const durationSec = parseISO8601Duration(contentDetails?.duration);
     const thumbnails = snippet.thumbnails || {};
-    const coverImage = thumbnails.maxres?.url || thumbnails.high?.url || thumbnails.medium?.url || thumbnails.default?.url || `https://i.ytimg.com/vi/${details.id}/hqdefault.jpg`;
+    const coverImage = await getVerifiedThumbnail(thumbnails);
 
     return normalizeSong({
       id: details.id,
@@ -605,7 +655,7 @@ export async function getSong(id) {
       artist: "YouTube Artist",
       album: "YouTube Music",
       category: "for-you",
-      coverImage: `https://i.ytimg.com/vi/${id}/hqdefault.jpg`,
+      coverImage: `/images/default-album.webp`,
       duration: 240,
       source: "youtube",
       youtubeUrl: `https://www.youtube.com/watch?v=${id}`,
@@ -614,7 +664,7 @@ export async function getSong(id) {
   }
 }
 
-export async function searchArtist(artistName, limit = 25) {
+export async function searchArtist(artistName, limit = Infinity) {
   return await searchSongs({ artist: artistName, limit });
 }
 

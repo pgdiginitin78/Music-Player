@@ -100,12 +100,13 @@ export default function Home() {
       if (isLoadMore) {
         setIsLoadingMore(true);
       } else {
+        setSongs([]); // Clear songs to show skeleton
         setIsSongsLoading(true);
         setError(null);
       }
 
       try {
-        const params = { page: targetPage, limit: 25 };
+        const params = { page: targetPage, limit: Infinity };
         if (searchQuery.trim())           params.search   = searchQuery.trim();
         if (activeCategorySlugNormalized) params.category = activeCategorySlugNormalized;
         if (selectedArtist)               params.artist   = selectedArtist;
@@ -211,7 +212,7 @@ export default function Home() {
           </div>
         </div>
 
-        <div className="relative w-full md:w-96">
+        {/* <div className="relative w-full md:w-96">
           <SearchIcon className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
           <input
             type="text"
@@ -230,7 +231,7 @@ export default function Home() {
               ✕
             </button>
           )}
-        </div>
+        </div> */}
       </header>
 
       {/* Popular Artists Carousel */}
@@ -367,13 +368,18 @@ export default function Home() {
           )}
         </div>
 
-        {/* ── Loading: full-area spinner only when no songs exist yet ── */}
         {showFullSpinner ? (
-          <div className="flex items-center justify-center h-64">
-            <div
-              className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2"
-              style={{ borderColor: theme.primary }}
-            />
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-6">
+            {Array.from({ length: 12 }).map((_, i) => (
+              <div key={i} className="relative rounded-xl p-4 bg-white/5 border border-transparent overflow-hidden animate-pulse">
+                <div className="relative aspect-square rounded-lg bg-white/10 mb-3"></div>
+                <div>
+                  <div className="h-4 bg-white/10 rounded w-3/4 mb-2"></div>
+                  <div className="h-3 bg-white/10 rounded w-1/2 mb-1"></div>
+                  <div className="h-2 bg-white/10 rounded w-1/3 mt-2"></div>
+                </div>
+              </div>
+            ))}
           </div>
         ) : error ? (
           /* ── Error state ── */

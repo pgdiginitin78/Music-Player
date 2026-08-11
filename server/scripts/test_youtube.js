@@ -21,7 +21,7 @@ async function testYouTubeIntegration() {
     });
 
     console.log('\n--- 2. Testing Category Search ("bollywood-hits") ---');
-    const bollywoodResult = await searchSongs({ category: 'bollywood-hits', limit: 5 });
+    const bollywoodResult = await searchSongs({ category: 'bollywood-hits', limit: Infinity });
     console.log(`Found ${bollywoodResult.songs.length} songs for Bollywood Hits:`);
     bollywoodResult.songs.forEach((song, i) => {
       console.log(`  ${i+1}. [${song.youtubeVideoId}] ${song.title} - ${song.artist}`);

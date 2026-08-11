@@ -23,6 +23,9 @@ export const MusicProvider = ({ children }) => {
   const [isShuffled, setIsShuffled] = useState(false);
   const [autoplayBlocked, setAutoplayBlocked] = useState(false);
   const [showLyrics, setShowLyrics] = useState(false);
+  const [playerReady, setPlayerReady] = useState(false);
+
+  const playerRef = useRef(null);
 
   const timerRef = useRef(null);
   const skipTimerRef = useRef(null);
@@ -79,7 +82,7 @@ export const MusicProvider = ({ children }) => {
 
   // Handle YouTube player state changes — STABLE callback
   const handleYTStateChange = useCallback((ytState) => {
-    console.log('[MUSIC CONTEXT] YouTube Player state:', ytState);
+    if (import.meta.env.DEV) console.log('[DEBUG] [MUSIC CONTEXT] YouTube Player state:', ytState);
     setAutoplayBlocked(false);
 
     switch (ytState) {
@@ -117,11 +120,13 @@ export const MusicProvider = ({ children }) => {
 
   // Handle YouTube errors — STABLE callback
   const handleYTError = useCallback((errorCode) => {
-    console.error('[MUSIC CONTEXT] Song Error Code:', errorCode);
+    if (import.meta.env.DEV) console.error('[DEBUG] [MUSIC CONTEXT] Song Error Code:', errorCode);
     clearIntervalTimer();
     setAudioState('error');
 
     let errorMessage = 'Playback error occurred.';
+    let removeAndSkip = false;
+    
     switch (errorCode) {
       case 2:
         errorMessage = 'Invalid Song ID.';
@@ -135,6 +140,7 @@ export const MusicProvider = ({ children }) => {
       case 101:
       case 150:
         errorMessage = 'This song cannot be played here (embedding disabled).';
+        removeAndSkip = true;
         break;
       case 153:
         errorMessage = 'Unable to initialize playback.';
@@ -146,10 +152,19 @@ export const MusicProvider = ({ children }) => {
 
     setPlaybackError(errorMessage);
 
-    // Auto-skip unavailable song after 1.5s delay — use ref to avoid stale closure
+    if (removeAndSkip) {
+      const currentId = getSongId(currentSongRef.current);
+      setQueue((prevQueue) => {
+        const newQueue = prevQueue.filter(s => getSongId(s) !== currentId);
+        queueRef.current = newQueue;
+        return newQueue;
+      });
+    }
+
+    // Auto-skip unavailable song after 1.5s delay
     clearSkipTimer();
     skipTimerRef.current = setTimeout(() => {
-      console.log('[MUSIC CONTEXT] Auto-skipping unavailable Song...');
+      if (import.meta.env.DEV) console.log('[DEBUG] [MUSIC CONTEXT] Auto-skipping unavailable Song...');
       if (playNextRef.current) playNextRef.current();
     }, 1500);
   }, [clearIntervalTimer, clearSkipTimer]); // stable
@@ -161,13 +176,16 @@ export const MusicProvider = ({ children }) => {
    */
   const initYouTubePlayerContainer = useCallback(async (containerId) => {
     try {
-      await youtubePlayer.initPlayer(containerId, '', {
+      const player = await youtubePlayer.initPlayer(containerId, '', {
         onStateChange: handleYTStateChange,
         onError: handleYTError,
+        onReady: () => setPlayerReady(true)
       });
-      // Apply initial volume after init
+      playerRef.current = player;
+      
       if (youtubePlayer.isReady) {
-        youtubePlayer.setVolume(100); // default full volume
+        setPlayerReady(true);
+        youtubePlayer.setVolume(100); 
       }
     } catch (err) {
       console.warn('[MUSIC CONTEXT] Player init notice:', err.message);
@@ -346,6 +364,7 @@ export const MusicProvider = ({ children }) => {
         isShuffled,
         autoplayBlocked,
         showLyrics,
+        playerReady,
         setShowLyrics,
         toggleLyrics: () => setShowLyrics(prev => !prev),
         playSong,

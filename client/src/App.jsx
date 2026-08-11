@@ -10,23 +10,40 @@ function App() {
 
   return (
     <div className="min-h-screen pb-28 relative">
-      <SceneBackground />
-      
       {/* Background Wallpaper Crossfade */}
       <AnimatePresence>
-        <motion.div
-          key={theme.wallpaper}
-          initial={{ opacity: 0, scale: 1.05 }}
-          animate={{ opacity: 1, scale: 1 }}
-          exit={{ opacity: 0 }}
-          transition={{ duration: 1.5, ease: "easeInOut" }}
-          className="fixed inset-0 -z-20 bg-cover bg-center bg-no-repeat"
-          style={{ backgroundImage: `url(${theme.wallpaper})` }}
-        />
+        {theme.wallpaper?.endsWith('.mp4') ? (
+          <motion.video
+            key={theme.wallpaper}
+            initial={{ opacity: 0, scale: 1.05 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 1.5, ease: "easeInOut" }}
+            src={theme.wallpaper}
+            autoPlay
+            loop
+            muted
+            playsInline
+            className="fixed inset-0 -z-30 w-full h-full object-cover opacity-60"
+          />
+        ) : (
+          <motion.div
+            key={theme.wallpaper}
+            initial={{ opacity: 0, scale: 1.05 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 1.5, ease: "easeInOut" }}
+            className="fixed inset-0 -z-30 bg-cover bg-center bg-no-repeat opacity-40"
+            style={{ backgroundImage: `url(${theme.wallpaper})` }}
+          />
+        )}
       </AnimatePresence>
 
       {/* Cinematic Gradient Overlay */}
-      <div className={`fixed inset-0 -z-10 bg-gradient-to-br ${theme.gradient} transition-colors duration-1000`} />
+      <div className={`fixed inset-0 -z-20 bg-gradient-to-br ${theme.gradient} transition-colors duration-1000 opacity-90`} />
+
+      {/* Live Animated Particle Wallpaper */}
+      <SceneBackground />
 
       {/* Synchronized Ambient Background Lyrics Layer */}
       <BackgroundLyrics />
