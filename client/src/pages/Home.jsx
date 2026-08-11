@@ -26,7 +26,7 @@ const POPULAR_ARTISTS = [
   { name: "King", tag: "Hindi Hip-Hop" },
   { name: "Prateek Kuhad", tag: "Acoustic Indie" },
   { name: "KK", tag: "Legendary Rock" },
-  { name: "Udit Narayan", tag: "Evergreen Voice" },
+  { name: "Karan Aujla", tag: "Punjabi Trendsetter" },
   { name: "Alka Yagnik", tag: "Melodious Era" },
   { name: "Kaka", tag: "Punjabi Heartbreak" },
   { name: "AP Dhillon", tag: "Punjabi Wave" },
