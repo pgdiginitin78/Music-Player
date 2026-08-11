@@ -4,7 +4,7 @@ const BLOCKED_ARTISTS = new Set([
   't-series', 'tseries', 'sony music india', 'zee music company', 'saregama music',
   'tips official', 'eros now music', 'yrf', 'dharmatic entertainment',
   'universal music india', 'warner music india', 'junglee music',
-  'speed records', 'desi music factory', 'vyrl originals',
+  'speed records', 'desi music factory', 'vyrl originals', 'unknown artist',
 ]);
 
 function isBlockedArtist(name = '') {
@@ -13,13 +13,23 @@ function isBlockedArtist(name = '') {
 
 const TITLE_PREFIX_RE = /^(full\s*(video|audio|song|lyric[s]?)|official\s*(video|audio|song|lyric[s]?|music\s*video)|lyric[s]?\s*(video|song)?|audio\s*(song|video)?|video\s*song|music\s*video|lyrical\s*(video)?)\s*[:\-|]?\s*/gi;
 
+const TITLE_TRAILING_TOKENS_RE = /\s+(full\s*video\s*song|full\s*audio\s*song|full\s*video|full\s*audio|full\s*song|video\s*song|audio\s*song|official\s*video|official\s*audio|official\s*song|lyrical\s*video|lyric\s*video|title\s*track|title\s*song)\s*$/gi;
+
 export function cleanTitle(raw = '') {
-  return raw
+  let out = raw
     .replace(TITLE_PREFIX_RE, '')
     .replace(/\s*[|\-]\s*(official\s*(video|audio|song)|full\s*(video|audio|song)|lyric[s]?\s*(video)?|4[kK]|hd|t[-\s]?series|sony music|zee music|saregama)\s*$/gi, '')
     .replace(/\s*\(.*?\)/g, '')
     .replace(/\s*\[.*?\]/g, '')
     .trim();
+
+  let prev;
+  do {
+    prev = out;
+    out = out.replace(TITLE_TRAILING_TOKENS_RE, '').trim();
+  } while (out !== prev);
+
+  return out;
 }
 
 export function cleanArtist(raw = '') {
@@ -40,9 +50,9 @@ export function parseYouTubeTitle(rawTitle = '', rawArtist = '') {
   }
 
   const knownPatterns = [
-    /arijit/i, /jubin/i, /badshah/i, /shreya/i, /udit/i, /sambata/i,
+    /arijit/i, /jubin/i, /badshah/i, /shreya/i, /udit/i, /sonu nigam/i,
     /sunidhi/i, /armaan/i, /atif/i, /anuv/i, /vishal/i, /pritam/i,
-    /a\.r\. rahman/i, /karan ajula/i, /shankar/i, /amit trivedi/i,
+    /a\.r\. rahman/i, /ar rahman/i, /shankar/i, /amit trivedi/i,
   ];
 
   for (let i = 1; i < parts.length; i++) {
