@@ -13,7 +13,6 @@ const MusicContext = createContext();
 
 export const useMusic = () => useContext(MusicContext);
 
-// iPadOS 13+ reports as "MacIntel" with touch support, so it needs a separate check
 function isIOSDevice() {
   if (typeof navigator === "undefined") return false;
   const ua = navigator.userAgent || navigator.vendor || "";
@@ -23,10 +22,7 @@ function isIOSDevice() {
   return isClassicIOS || isIPadOS13Plus;
 }
 
-/**
- * Audio State Machine States:
- * 'idle' | 'loading' | 'buffering' | 'playing' | 'paused' | 'ended' | 'error'
- */
+
 export const MusicProvider = ({ children }) => {
   const [currentSong, setCurrentSong] = useState(null);
   const [queue, setQueue] = useState([]);
@@ -471,19 +467,12 @@ export const MusicProvider = ({ children }) => {
     }
   }, [audioState]);
 
-  // ── iOS background playback degradation ───────────────────────────────
-  // iOS Safari forcibly suspends iframe-hosted video/audio the moment the
-  // tab is backgrounded or the screen locks — there is no way to prevent
-  // this from JavaScript. Rather than let iOS silently kill playback and
-  // leave our state (isPlaying, progress timer, etc.) out of sync with
-  // reality, we proactively pause on hide and resume on return, with a
-  // clear message so it doesn't look like a bug.
   const wasPlayingBeforeHiddenRef = useRef(false);
 
   useEffect(() => {
     if (typeof document === "undefined") return;
     const iOS = isIOSDevice();
-    if (!iOS) return; // desktop & Android already handle background playback correctly
+    if (!iOS) return;
 
     const handleVisibilityChange = () => {
       if (document.hidden) {

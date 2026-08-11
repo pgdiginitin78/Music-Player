@@ -9,6 +9,8 @@ import {
 import { getCategories, getSongs } from "../services/api.js";
 import { useTheme } from "../context/ThemeContext.jsx";
 
+const PAGE_SIZE = 25;
+
 const POPULAR_ARTISTS = [
   { name: "Anuv Jain", tag: "Indie Vocalist" },
   { name: "Arijit Singh", tag: "Bollywood Royalty" },
@@ -18,16 +20,18 @@ const POPULAR_ARTISTS = [
   { name: "Atif Aslam", tag: "Classic Belter" },
   { name: "Vishal Mishra", tag: "Emotional Ballads" },
   { name: "Mohit Chauhan", tag: "Sufi & Folk" },
-  { name: "Sonu Nigam", tag: "Master Vocalist" },
   { name: "Shreya Ghoshal", tag: "Nightingale" },
   { name: "Sunidhi Chauhan", tag: "Powerhouse" },
   { name: "Neha Kakkar", tag: "Party Anthems" },
   { name: "King", tag: "Hindi Hip-Hop" },
   { name: "Prateek Kuhad", tag: "Acoustic Indie" },
   { name: "KK", tag: "Legendary Rock" },
-  { name: "Kumar Sanu", tag: "90s Gold" },
   { name: "Udit Narayan", tag: "Evergreen Voice" },
   { name: "Alka Yagnik", tag: "Melodious Era" },
+  { name: "Kaka", tag: "Punjabi Heartbreak" },
+  { name: "AP Dhillon", tag: "Punjabi Wave" },
+  { name: "Divine", tag: "Desi Hip-Hop" },
+  { name: "Sambata", tag: "Rising Talent" },
 ];
 
 export default function Home() {
@@ -36,26 +40,16 @@ export default function Home() {
   const [hasMore, setHasMore] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedArtist, setSelectedArtist] = useState("");
-
-  // ── Independent loading states ──────────────────────────────────────────────
-  // isSongsLoading: true only for the initial fetch (no songs yet)
   const [isSongsLoading, setIsSongsLoading] = useState(false);
-  // isLoadingMore: true only when loading additional pages (songs already visible)
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [error, setError] = useState(null);
 
-  // ── Page tracking via ref (avoids fetchSongs re-creation on page change) ──
-  const pageRef = useRef(1);
+  const nextPageTokenRef = useRef(null);
 
-  // ── Inflight request tracking — one AbortController per fetch cycle ────────
-  // When a new fetch starts, we abort the previous one.
-  // This guarantees the finally { setLoading(false) } of the aborted call
-  // runs immediately and never blocks the UI.
   const fetchAbortRef = useRef(null);
 
   const { activeCategorySlug, setActiveCategorySlug, theme } = useTheme();
 
-  // ── Load categories (fire and forget — never blocks song loading) ──────────
   useEffect(() => {
     let cancelled = false;
     const load = async () => {
@@ -63,13 +57,15 @@ export default function Home() {
         const cats = await getCategories();
         if (!cancelled) setCategories(cats);
       } catch (err) {
-        // Categories failing must NEVER block the rest of the app
-        if (!cancelled) console.warn("[HOME] Categories load failed:", err.message);
+        if (!cancelled)
+          console.warn("[HOME] Categories load failed:", err.message);
       }
     };
     load();
-    return () => { cancelled = true; };
-  }, []); // run once
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const activeCategorySlugNormalized =
     activeCategorySlug === "default" || activeCategorySlug === "for-you"
@@ -78,93 +74,81 @@ export default function Home() {
 
   const activeCategory = categories.find((c) => c.slug === activeCategorySlug);
 
-  // ── Core song fetcher ───────────────────────────────────────────────────────
-  // IMPORTANT: This function:
-  //   1. Aborts any previous inflight request
-  //   2. Always calls setLoading(false) in finally — even on abort/timeout/error
-  //   3. Ignores AbortError responses (they are intentional cancellations)
+  const getSongKey = (s) => s.youtubeVideoId || s.id || s._id;
+
   const fetchSongs = useCallback(
     async (isLoadMore = false) => {
-      // Abort any currently inflight request
       if (fetchAbortRef.current) {
         fetchAbortRef.current.abort();
       }
       const controller = new AbortController();
       fetchAbortRef.current = controller;
 
-      const targetPage = isLoadMore ? pageRef.current + 1 : 1;
-
-      // Show the right loading indicator:
-      // - isSongsLoading: full-area spinner (only when no songs are shown yet)
-      // - isLoadingMore: small spinner on the "Load More" button
       if (isLoadMore) {
         setIsLoadingMore(true);
       } else {
-        setSongs([]); // Clear songs to show skeleton
+        setSongs([]);
+        nextPageTokenRef.current = null;
         setIsSongsLoading(true);
         setError(null);
       }
 
       try {
-        const params = { page: targetPage, limit: Infinity };
-        if (searchQuery.trim())           params.search   = searchQuery.trim();
-        if (activeCategorySlugNormalized) params.category = activeCategorySlugNormalized;
-        if (selectedArtist)               params.artist   = selectedArtist;
+        const params = { limit: PAGE_SIZE };
+        if (searchQuery.trim()) params.search = searchQuery.trim();
+        if (activeCategorySlugNormalized)
+          params.category = activeCategorySlugNormalized;
+        if (selectedArtist) params.artist = selectedArtist;
+        if (isLoadMore && nextPageTokenRef.current) {
+          params.pageToken = nextPageTokenRef.current;
+        }
 
-        const results = await getSongs(params, controller.signal);
-
-        // Ignore result if this request was intentionally aborted
+        const result = await getSongs(params, controller.signal);
         if (controller.signal.aborted) return;
 
         if (isLoadMore) {
-          setSongs((prev) => [...prev, ...results]);
-          pageRef.current = targetPage;
+          setSongs((prev) => {
+            const seen = new Set(prev.map(getSongKey));
+            const deduped = result.songs.filter(
+              (s) => !seen.has(getSongKey(s)),
+            );
+            return [...prev, ...deduped];
+          });
         } else {
-          setSongs(results);
-          pageRef.current = 1;
+          setSongs(result.songs);
         }
 
-        setHasMore(results.length >= 25);
+        nextPageTokenRef.current = result.nextPageToken;
+        setHasMore(result.hasMore);
       } catch (err) {
-        // AbortError = intentional cancel (new search/category started) — not an error
         if (err.name === "AbortError") return;
 
         console.error("[HOME] Failed to fetch songs:", err.message);
-        setError("Unable to load songs. Please check your connection and try again.");
+        setError(
+          "Unable to load songs. Please check your connection and try again.",
+        );
       } finally {
-        // Always clear loading — even on abort (abort means a new request is
-        // already inflight and will set its own loading state)
         if (!controller.signal.aborted) {
           setIsSongsLoading(false);
           setIsLoadingMore(false);
         }
       }
     },
-    [searchQuery, activeCategorySlugNormalized, selectedArtist]
-    // NOTE: page intentionally excluded — read via pageRef.current
+    [searchQuery, activeCategorySlugNormalized, selectedArtist],
   );
-
-  // ── Debounced fetch on filter/search/category change ─────────────────────
   useEffect(() => {
-    // 300ms debounce to avoid firing on every keystroke
     const handler = setTimeout(() => {
       fetchSongs(false);
     }, 300);
 
     return () => {
       clearTimeout(handler);
-      // Also abort any pending request when dependencies change
-      // (e.g., user types quickly — cancel the previous fetch)
       if (fetchAbortRef.current) {
         fetchAbortRef.current.abort();
       }
     };
   }, [searchQuery, activeCategorySlugNormalized, selectedArtist]);
-  // NOTE: fetchSongs intentionally excluded to avoid double-firing.
-  // It only changes when the same deps change, so including it would
-  // cause the effect to run an extra time with no benefit.
 
-  // Cleanup on unmount
   useEffect(() => {
     return () => {
       if (fetchAbortRef.current) {
@@ -183,7 +167,6 @@ export default function Home() {
     setActiveCategorySlug("for-you");
   };
 
-  // Combined loading flag for UI: only show full spinner when no songs exist yet
   const showFullSpinner = isSongsLoading && songs.length === 0;
 
   return (
@@ -193,7 +176,6 @@ export default function Home() {
       exit={{ opacity: 0 }}
       className="max-w-7xl mx-auto pb-16"
     >
-      {/* Header & Search */}
       <header className="flex flex-col md:flex-row items-center justify-between gap-6 mb-10">
         <div className="flex items-center gap-3">
           <div
@@ -211,30 +193,8 @@ export default function Home() {
             </h1>
           </div>
         </div>
-
-        {/* <div className="relative w-full md:w-96">
-          <SearchIcon className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
-          <input
-            type="text"
-            placeholder="Search Arijit Singh, Anuv Jain, Bollywood hits..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full bg-white/10 border border-white/10 rounded-full py-3 pl-12 pr-10 text-white placeholder:text-gray-400 focus:outline-none focus:ring-2 backdrop-blur-md transition-all"
-            style={{ "--tw-ring-color": theme.primary }}
-          />
-          {searchQuery && (
-            <button
-              type="button"
-              onClick={() => setSearchQuery("")}
-              className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-white text-sm"
-            >
-              ✕
-            </button>
-          )}
-        </div> */}
       </header>
 
-      {/* Popular Artists Carousel */}
       <section className="mb-10">
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-xl font-semibold text-white flex items-center gap-2">
@@ -285,8 +245,6 @@ export default function Home() {
           })}
         </div>
       </section>
-
-      {/* Category Tabs */}
       <section className="mb-10">
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-xl font-semibold text-white">Categories</h2>
@@ -322,8 +280,6 @@ export default function Home() {
           })}
         </div>
       </section>
-
-      {/* Track Listing */}
       <section>
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
           <div>
@@ -371,7 +327,10 @@ export default function Home() {
         {showFullSpinner ? (
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-6">
             {Array.from({ length: 12 }).map((_, i) => (
-              <div key={i} className="relative rounded-xl p-4 bg-white/5 border border-transparent overflow-hidden animate-pulse">
+              <div
+                key={i}
+                className="relative rounded-xl p-4 bg-white/5 border border-transparent overflow-hidden animate-pulse"
+              >
                 <div className="relative aspect-square rounded-lg bg-white/10 mb-3"></div>
                 <div>
                   <div className="h-4 bg-white/10 rounded w-3/4 mb-2"></div>
@@ -382,7 +341,6 @@ export default function Home() {
             ))}
           </div>
         ) : error ? (
-          /* ── Error state ── */
           <div className="flex flex-col items-center justify-center h-64 text-center px-4 bg-white/5 rounded-3xl border border-white/10">
             <p className="text-lg text-rose-300 mb-4">{error}</p>
             <button
@@ -395,7 +353,6 @@ export default function Home() {
             </button>
           </div>
         ) : songs.length === 0 ? (
-          /* ── Empty state ── */
           <div className="text-center py-16 bg-white/5 rounded-3xl border border-white/10 backdrop-blur-sm px-6">
             <MusicIcon className="w-16 h-16 mx-auto mb-4 text-gray-500 opacity-40" />
             <h3 className="text-lg font-semibold text-white mb-2">
@@ -417,9 +374,7 @@ export default function Home() {
             </button>
           </div>
         ) : (
-          /* ── Song grid ── */
           <>
-            {/* Subtle overlay spinner when reloading existing content */}
             {isSongsLoading && songs.length > 0 && (
               <div className="flex justify-center mb-4">
                 <div
@@ -428,7 +383,6 @@ export default function Home() {
                 />
               </div>
             )}
-
             <motion.div
               layout
               className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-6"

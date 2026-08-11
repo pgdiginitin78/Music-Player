@@ -45,7 +45,7 @@ export const categoryThemes = {
     gradient: "from-gray-950 via-gray-950/80 to-amber-950/20"
   },
   "romantic-hindi": {
-    wallpaper: "/wallpapers/652baf4741_wisteria-reflections-night-lake-live-wallpaper-wallsflow-com.mp4",
+    wallpaper: "/wallpapers/6964bab862_misty-lakeside-pavilion-live-wallpaper-wallsflow-com.mp4",
     primary: "rgba(190, 24, 93, 1)",
     secondary: "rgba(80, 7, 36, 1)",
     accent: "rgba(249, 168, 212, 1)",
@@ -54,7 +54,7 @@ export const categoryThemes = {
     gradient: "from-gray-950 via-gray-950/80 to-pink-950/20"
   },
   "sad-hindi": {
-    wallpaper: "/wallpapers/6964bab862_misty-lakeside-pavilion-live-wallpaper-wallsflow-com.mp4",
+    wallpaper: "/wallpapers/simpson-moon.mp4",
     primary: "rgba(71, 85, 105, 1)",
     secondary: "rgba(15, 23, 42, 1)",
     accent: "rgba(148, 163, 184, 1)",
