@@ -1,21 +1,18 @@
 import { createContext, useContext, useState, useRef, useEffect, useCallback } from 'react';
 import youtubePlayer, { YTState } from '../services/youtubePlayer';
+import { getSongThumbnail } from '../services/songNormalizer.js';
 
 const MusicContext = createContext();
 
 export const useMusic = () => useContext(MusicContext);
 
-/**
- * Audio State Machine States:
- * 'idle' | 'loading' | 'buffering' | 'playing' | 'paused' | 'ended' | 'error'
- */
 export const MusicProvider = ({ children }) => {
   const [currentSong, setCurrentSong] = useState(null);
   const [queue, setQueue] = useState([]);
   const [history, setHistory] = useState([]);
   const [audioState, setAudioState] = useState('idle');
   const [playbackError, setPlaybackError] = useState(null);
-  const [volume, setVolume] = useState(1.0); // 0.0 to 1.0
+  const [volume, setVolume] = useState(1.0);
   const [isMuted, setIsMuted] = useState(false);
   const [progress, setProgress] = useState(0);
   const [currentTime, setCurrentTime] = useState(0);
@@ -34,7 +31,6 @@ export const MusicProvider = ({ children }) => {
   const isShuffledRef = useRef(false);
   const audioStateRef = useRef('idle');
 
-  // Keep refs in sync with state
   currentSongRef.current = currentSong;
   queueRef.current = queue;
   isShuffledRef.current = isShuffled;
@@ -42,45 +38,54 @@ export const MusicProvider = ({ children }) => {
 
   const getSongId = (song) => song?.youtubeSongId || song?.id || song?._id;
 
-  // Clear timers
   const clearIntervalTimer = useCallback(() => {
     if (timerRef.current) {
       clearInterval(timerRef.current);
       timerRef.current = null;
     }
-  }, []); // stable — no deps
+  }, []);
 
   const clearSkipTimer = useCallback(() => {
     if (skipTimerRef.current) {
       clearTimeout(skipTimerRef.current);
       skipTimerRef.current = null;
     }
-  }, []); // stable — no deps
+  }, []); 
 
-  // Synchronize progress & current time from YouTube Player
-  // STABLE: reads currentSong from ref, not from closure state
+
   const startProgressTracking = useCallback(() => {
     clearIntervalTimer();
     timerRef.current = setInterval(() => {
       if (youtubePlayer) {
         const curTime = youtubePlayer.getCurrentTime() || 0;
-        // Read duration from player first, then fall back to ref
+   
         const dur = youtubePlayer.getDuration() || currentSongRef.current?.duration || 0;
 
         setCurrentTime(curTime);
         if (dur > 0) {
           setActualDuration(dur);
           setProgress((curTime / dur) * 100);
+
+          if ('mediaSession' in navigator && typeof navigator.mediaSession.setPositionState === 'function') {
+            try {
+              navigator.mediaSession.setPositionState({
+                duration: dur,
+                playbackRate: 1,
+                position: Math.min(curTime, dur)
+              });
+            } catch (err) {
+           
+            }
+          }
         }
       }
     }, 250);
-  }, [clearIntervalTimer]); // stable — does not depend on currentSong state
+  }, [clearIntervalTimer]); 
 
-  // STABLE playNext — reads queue/state from refs, not closures
-  // Forward-declared so handleYTStateChange can reference it
+
   const playNextRef = useRef(null);
 
-  // Handle YouTube player state changes — STABLE callback
+
   const handleYTStateChange = useCallback((ytState) => {
     if (import.meta.env.DEV) console.log('[DEBUG] [MUSIC CONTEXT] YouTube Player state:', ytState);
     setAutoplayBlocked(false);
@@ -105,7 +110,7 @@ export const MusicProvider = ({ children }) => {
       case YTState.ENDED:
         setAudioState('ended');
         clearIntervalTimer();
-        // Use ref to avoid stale closure
+     
         if (playNextRef.current) playNextRef.current();
         break;
 
@@ -116,9 +121,9 @@ export const MusicProvider = ({ children }) => {
       default:
         break;
     }
-  }, [startProgressTracking, clearIntervalTimer]); // stable — startProgressTracking & clearIntervalTimer are stable
+  }, [startProgressTracking, clearIntervalTimer]);
 
-  // Handle YouTube errors — STABLE callback
+
   const handleYTError = useCallback((errorCode) => {
     if (import.meta.env.DEV) console.error('[DEBUG] [MUSIC CONTEXT] Song Error Code:', errorCode);
     clearIntervalTimer();
@@ -161,19 +166,15 @@ export const MusicProvider = ({ children }) => {
       });
     }
 
-    // Auto-skip unavailable song after 1.5s delay
+
     clearSkipTimer();
     skipTimerRef.current = setTimeout(() => {
       if (import.meta.env.DEV) console.log('[DEBUG] [MUSIC CONTEXT] Auto-skipping unavailable Song...');
       if (playNextRef.current) playNextRef.current();
     }, 1500);
-  }, [clearIntervalTimer, clearSkipTimer]); // stable
+  }, [clearIntervalTimer, clearSkipTimer]); 
 
-  /**
-   * Initialize YouTube IFrame Player container — called ONCE on mount.
-   * STABLE: does NOT depend on currentSong, volume, or any changing state.
-   * The player is created once; songs are loaded via loadVideoById().
-   */
+
   const initYouTubePlayerContainer = useCallback(async (containerId) => {
     try {
       const player = await youtubePlayer.initPlayer(containerId, '', {
@@ -190,9 +191,8 @@ export const MusicProvider = ({ children }) => {
     } catch (err) {
       console.warn('[MUSIC CONTEXT] Player init notice:', err.message);
     }
-  }, [handleYTStateChange, handleYTError]); // stable — handleYTStateChange & handleYTError are stable
+  }, [handleYTStateChange, handleYTError]); 
 
-  // Volume & Mute synchronizer — runs on volume/mute changes only, does NOT reinitialize player
   useEffect(() => {
     if (youtubePlayer && youtubePlayer.isReady) {
       if (isMuted) {
@@ -204,16 +204,13 @@ export const MusicProvider = ({ children }) => {
     }
   }, [volume, isMuted]);
 
-  /**
-   * Play Song Routine
-   */
+
   const playSong = useCallback(async (song, playlist = null, isNavigatingHistory = false) => {
     if (!song) return;
 
     const targetId = getSongId(song);
     const currentId = getSongId(currentSongRef.current);
 
-    // If clicking currently loaded song: toggle play/pause
     if (currentId === targetId && currentSongRef.current) {
       const state = audioStateRef.current;
       if (state === 'playing') {
@@ -230,7 +227,6 @@ export const MusicProvider = ({ children }) => {
       return;
     }
 
-    // Record history
     if (currentSongRef.current && !isNavigatingHistory) {
       setHistory((prev) => [...prev, currentSongRef.current]);
     }
@@ -259,7 +255,8 @@ export const MusicProvider = ({ children }) => {
         setPlaybackError('Failed to load Song.');
       }
     }
-  }, [clearSkipTimer]); // stable — reads mutable state via refs
+  }, [clearSkipTimer]);
+  
 
   const togglePlay = useCallback(() => {
     if (!currentSongRef.current) return;
@@ -300,9 +297,8 @@ export const MusicProvider = ({ children }) => {
     if (nextSong) {
       playSong(nextSong);
     }
-  }, [playSong]); // stable — reads queue & isShuffled from refs
+  }, [playSong]); 
 
-  // Keep playNextRef up to date so handleYTStateChange/handleYTError can call it
   playNextRef.current = playNext;
 
   const playPrev = useCallback(() => {
@@ -332,7 +328,7 @@ export const MusicProvider = ({ children }) => {
       setProgress(percentage);
       setCurrentTime(seekSeconds);
     }
-  }, []); // stable
+  }, []); 
 
   const setVolumeLevel = useCallback((val) => {
     const clamped = Math.max(0, Math.min(1, val));
@@ -340,11 +336,75 @@ export const MusicProvider = ({ children }) => {
     if (clamped > 0) {
       setIsMuted(false);
     }
-  }, []); // stable
+  }, []); 
 
   const toggleMute = useCallback(() => {
     setIsMuted((prev) => !prev);
-  }, []); // stable
+  }, []);
+
+ 
+  useEffect(() => {
+    if (!('mediaSession' in navigator)) return;
+
+    navigator.mediaSession.setActionHandler('play', () => togglePlay());
+    navigator.mediaSession.setActionHandler('pause', () => togglePlay());
+    navigator.mediaSession.setActionHandler('previoustrack', () => playPrev());
+    navigator.mediaSession.setActionHandler('nexttrack', () => playNext());
+    navigator.mediaSession.setActionHandler('seekto', (details) => {
+      if (typeof details.seekTime === 'number') {
+        const totalDur = youtubePlayer.getDuration() || currentSongRef.current?.duration || 0;
+        if (totalDur > 0) {
+          const percentage = (details.seekTime / totalDur) * 100;
+          seek(percentage);
+        }
+      }
+    });
+
+    return () => {
+      if (!('mediaSession' in navigator)) return;
+      navigator.mediaSession.setActionHandler('play', null);
+      navigator.mediaSession.setActionHandler('pause', null);
+      navigator.mediaSession.setActionHandler('previoustrack', null);
+      navigator.mediaSession.setActionHandler('nexttrack', null);
+      navigator.mediaSession.setActionHandler('seekto', null);
+    };
+  }, [togglePlay, playPrev, playNext, seek]);
+
+  useEffect(() => {
+    if (!('mediaSession' in navigator)) return;
+
+    if (!currentSong) {
+      navigator.mediaSession.metadata = null;
+      return;
+    }
+
+    const artwork = getSongThumbnail(currentSong);
+
+    navigator.mediaSession.metadata = new MediaMetadata({
+      title: currentSong.title || 'Untitled Track',
+      artist: currentSong.artist || 'Unknown Artist',
+      album: currentSong.album || '',
+      artwork: artwork
+        ? [
+            { src: artwork, sizes: '96x96', type: 'image/jpeg' },
+            { src: artwork, sizes: '256x256', type: 'image/jpeg' },
+            { src: artwork, sizes: '512x512', type: 'image/jpeg' },
+          ]
+        : []
+    });
+  }, [currentSong]);
+
+  useEffect(() => {
+    if (!('mediaSession' in navigator)) return;
+
+    if (audioState === 'playing') {
+      navigator.mediaSession.playbackState = 'playing';
+    } else if (audioState === 'paused' || audioState === 'idle') {
+      navigator.mediaSession.playbackState = 'paused';
+    } else {
+      navigator.mediaSession.playbackState = 'none';
+    }
+  }, [audioState]);
 
   return (
     <MusicContext.Provider

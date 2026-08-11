@@ -41,7 +41,6 @@ export default function SongCard({ song, playlist }) {
           alt={song?.title || "Song Cover"}
           onError={(e) => {
             e.currentTarget.onerror = null;
-            // Fallback chain: if high-res YouTube failed, try hqdefault, then local default
             if (song?.youtubeVideoId && !e.currentTarget.src.includes('hqdefault')) {
               e.currentTarget.src = `https://i.ytimg.com/vi/${song.youtubeVideoId}/hqdefault.jpg`;
             } else {
