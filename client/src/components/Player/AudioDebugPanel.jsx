@@ -25,18 +25,18 @@ export default function AudioDebugPanel() {
       {isOpen && (
         <div className="mt-2 w-80 bg-gray-950/95 border border-red-500/30 text-gray-200 p-4 rounded-xl shadow-2xl backdrop-blur-md space-y-2 text-[11px] overflow-hidden">
           <div className="font-bold text-red-400 border-b border-white/10 pb-1 flex justify-between">
-            <span>YouTube IFrame Diagnostics</span>
+            <span>Audio Diagnostics</span>
             <span className="uppercase text-amber-400">{audioState}</span>
           </div>
 
           <div className="grid grid-cols-2 gap-1 text-[10px]">
-            <span className="text-gray-400">Video Title:</span>
+            <span className="text-gray-400">Audio Title:</span>
             <span className="truncate font-semibold">{currentSong?.title || 'None'}</span>
 
             <span className="text-gray-400">Channel / Artist:</span>
             <span className="truncate">{currentSong?.artist || 'None'}</span>
 
-            <span className="text-gray-400">YouTube Video ID:</span>
+            <span className="text-gray-400"> Audio ID:</span>
             <span className="truncate font-mono text-red-300">{currentSong?.youtubeVideoId || currentSong?.id || 'None'}</span>
 
             <span className="text-gray-400">Player State:</span>
