@@ -8,6 +8,7 @@ import {
 } from "react";
 import youtubePlayer, { YTState } from "../services/youtubePlayer";
 import { getSongThumbnail } from "../services/songNormalizer.js";
+import { fetchLikedSongs, likeSongApi, unlikeSongApi } from "../services/api.js";
 
 const MusicContext = createContext();
 
@@ -22,8 +23,53 @@ function isIOSDevice() {
   return isClassicIOS || isIPadOS13Plus;
 }
 
-
 export const MusicProvider = ({ children }) => {
+  const [likedSongs, setLikedSongs] = useState([]);
+
+  // Fetch Liked Songs from MongoDB table on mount
+  useEffect(() => {
+    let active = true;
+    fetchLikedSongs().then((songs) => {
+      if (active && Array.isArray(songs)) {
+        setLikedSongs(songs);
+      }
+    });
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  const isSongLiked = useCallback(
+    (songId) => {
+      if (!songId) return false;
+      return likedSongs.some((s) => (s.youtubeVideoId || s.id) === songId);
+    },
+    [likedSongs],
+  );
+
+  const toggleLikeSong = useCallback(
+    async (song) => {
+      if (!song) return;
+      const songId = song.youtubeVideoId || song.id;
+      if (!songId) return;
+
+      const exists = likedSongs.some(
+        (s) => (s.youtubeVideoId || s.id) === songId,
+      );
+
+      if (exists) {
+        setLikedSongs((prev) =>
+          prev.filter((s) => (s.youtubeVideoId || s.id) !== songId),
+        );
+        await unlikeSongApi(songId);
+      } else {
+        setLikedSongs((prev) => [song, ...prev]);
+        await likeSongApi(song);
+      }
+    },
+    [likedSongs],
+  );
+
   const [currentSong, setCurrentSong] = useState(null);
   const [queue, setQueue] = useState([]);
   const [history, setHistory] = useState([]);
@@ -54,7 +100,7 @@ export const MusicProvider = ({ children }) => {
   isShuffledRef.current = isShuffled;
   audioStateRef.current = audioState;
 
-  const getSongId = (song) => song?.youtubeSongId || song?.id || song?._id;
+  const getSongId = (song) => song?.youtubeVideoId || song?.youtubeSongId || song?.id || song?._id;
 
   // Clear timers
   const clearIntervalTimer = useCallback(() => {
@@ -294,7 +340,7 @@ export const MusicProvider = ({ children }) => {
       setAudioState("loading");
       clearSkipTimer();
 
-      const SongId = song.youtubeSongId || song.id;
+      const SongId = song.youtubeVideoId || song.youtubeSongId || song.id || song._id;
       if (SongId) {
         try {
           youtubePlayer.loadSongById(SongId);
@@ -509,6 +555,9 @@ export const MusicProvider = ({ children }) => {
   return (
     <MusicContext.Provider
       value={{
+        likedSongs,
+        toggleLikeSong,
+        isSongLiked,
         currentSong,
         queue,
         history,

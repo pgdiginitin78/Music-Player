@@ -9,6 +9,28 @@
   }
 }
 
+@keyframes paroRingExpand {
+  0% {
+    transform: scale(0.95);
+    opacity: 0.65;
+  }
+  100% {
+    transform: scale(2.2);
+    opacity: 0;
+  }
+}
+
+@keyframes paroBreathingGlow {
+  0%, 100% {
+    transform: scale(1);
+    opacity: 0.9;
+  }
+  50% {
+    transform: scale(1.06);
+    opacity: 1;
+  }
+}
+
 @layer utilities {
   .glass-panel {
     @apply bg-white/10 backdrop-blur-lg border border-white/10 shadow-xl;
@@ -24,5 +46,45 @@
   .hide-scrollbar {
     -ms-overflow-style: none;
     scrollbar-width: none;
+  }
+
+  /* GPU-Accelerated PARO Listening Concentric Rings */
+  .animate-paro-ring-1 {
+    animation: paroRingExpand 2.8s cubic-bezier(0.215, 0.61, 0.355, 1) infinite;
+  }
+  .animate-paro-ring-2 {
+    animation: paroRingExpand 2.8s cubic-bezier(0.215, 0.61, 0.355, 1) infinite 0.7s;
+  }
+  .animate-paro-ring-3 {
+    animation: paroRingExpand 2.8s cubic-bezier(0.215, 0.61, 0.355, 1) infinite 1.4s;
+  }
+
+  /* Active User Speech Fast Concentric Rings */
+  .animate-paro-ring-fast-1 {
+    animation: paroRingExpand 1.5s cubic-bezier(0.215, 0.61, 0.355, 1) infinite;
+  }
+  .animate-paro-ring-fast-2 {
+    animation: paroRingExpand 1.5s cubic-bezier(0.215, 0.61, 0.355, 1) infinite 0.38s;
+  }
+  .animate-paro-ring-fast-3 {
+    animation: paroRingExpand 1.5s cubic-bezier(0.215, 0.61, 0.355, 1) infinite 0.76s;
+  }
+
+  .animate-paro-breath {
+    animation: paroBreathingGlow 2.5s ease-in-out infinite;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-paro-ring-1,
+  .animate-paro-ring-2,
+  .animate-paro-ring-3,
+  .animate-paro-ring-fast-1,
+  .animate-paro-ring-fast-2,
+  .animate-paro-ring-fast-3,
+  .animate-paro-breath {
+    animation: none !important;
+    opacity: 0.25 !important;
+    transform: scale(1.15) !important;
   }
 }

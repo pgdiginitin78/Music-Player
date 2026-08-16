@@ -5,9 +5,11 @@ import {
   SearchIcon,
   MusicIcon,
   SparklesIcon,
+  HeartIcon,
 } from "../components/icons/Icons.jsx";
-import { getCategories, getSongs } from "../services/api.js";
+import { getCategories, getSongs, getRecommendations } from "../services/api.js";
 import { useTheme } from "../context/ThemeContext.jsx";
+import { useMusic } from "../context/MusicContext.jsx";
 
 const PAGE_SIZE = 25;
 
@@ -49,6 +51,7 @@ export default function Home() {
   const fetchAbortRef = useRef(null);
 
   const { activeCategorySlug, setActiveCategorySlug, theme } = useTheme();
+  const { likedSongs } = useMusic();
 
   useEffect(() => {
     let cancelled = false;
@@ -103,7 +106,45 @@ export default function Home() {
           params.pageToken = nextPageTokenRef.current;
         }
 
-        const result = await getSongs(params, controller.signal);
+        if (activeCategorySlug === "liked-music") {
+          setSongs(likedSongs || []);
+          setIsSongsLoading(false);
+          setIsLoadingMore(false);
+          return;
+        }
+
+        let result;
+        const likedIds = likedSongs ? likedSongs.map(getSongKey) : [];
+
+        if (!searchQuery.trim() && !selectedArtist && !isLoadMore) {
+          if (
+            activeCategorySlug === "for-you" ||
+            activeCategorySlug === "default"
+          ) {
+            result = await getRecommendations(
+              "for-you",
+              likedIds,
+              controller.signal,
+            );
+          } else if (activeCategorySlug === "trending-hindi") {
+            result = await getRecommendations(
+              "trending",
+              likedIds,
+              controller.signal,
+            );
+          } else if (activeCategorySlug === "latest-hindi") {
+            result = await getRecommendations(
+              "new",
+              likedIds,
+              controller.signal,
+            );
+          } else {
+            result = await getSongs(params, controller.signal);
+          }
+        } else {
+          result = await getSongs(params, controller.signal);
+        }
+
         if (controller.signal.aborted) return;
 
         if (isLoadMore) {
@@ -250,6 +291,32 @@ export default function Home() {
           <h2 className="text-xl font-semibold text-white">Categories</h2>
         </div>
         <div className="flex gap-3 overflow-x-auto pb-3 snap-x hide-scrollbar">
+          {/* Liked Songs Special Category Pill */}
+          <button
+            type="button"
+            onClick={() => setActiveCategorySlug("liked-music")}
+            className={`flex-shrink-0 px-5 py-2.5 rounded-full text-sm font-medium transition-all border backdrop-blur-md snap-start flex items-center gap-2 ${
+              activeCategorySlug === "liked-music"
+                ? "text-white"
+                : "bg-white/5 border-transparent text-gray-300 hover:bg-white/10"
+            }`}
+            style={
+              activeCategorySlug === "liked-music"
+                ? {
+                    backgroundColor: theme.primary,
+                    borderColor: theme.accent,
+                    boxShadow: `0 0 15px ${theme.glow}`,
+                  }
+                : {}
+            }
+          >
+            <HeartIcon
+              filled={activeCategorySlug === "liked-music"}
+              className={`w-4 h-4 ${activeCategorySlug === "liked-music" ? "text-rose-400" : "text-gray-400"}`}
+            />
+            <span>Liked Music ({likedSongs ? likedSongs.length : 0})</span>
+          </button>
+
           {categories.map((category) => {
             const isActive =
               activeCategorySlug === category.slug ||
@@ -283,12 +350,19 @@ export default function Home() {
       <section>
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
           <div>
-            <h2 className="text-2xl font-semibold text-white">
-              {searchQuery
-                ? `Results for "${searchQuery}"`
-                : selectedArtist
-                  ? `${selectedArtist} Tracks`
-                  : activeCategory?.name || "Popular Hindi Music"}
+            <h2 className="text-2xl font-semibold text-white flex items-center gap-2">
+              {activeCategorySlug === "liked-music" ? (
+                <>
+                  <HeartIcon filled className="w-6 h-6 text-rose-400" />
+                  Your Liked Songs ({likedSongs ? likedSongs.length : 0})
+                </>
+              ) : searchQuery ? (
+                `Results for "${searchQuery}"`
+              ) : selectedArtist ? (
+                `${selectedArtist} Tracks`
+              ) : (
+                activeCategory?.name || "Popular Hindi Music"
+              )}
             </h2>
             <p className="text-xs text-gray-400 mt-1">
               High Quality Audio Engine • Synchronized Lyrics Supported
@@ -354,24 +428,46 @@ export default function Home() {
           </div>
         ) : songs.length === 0 ? (
           <div className="text-center py-16 bg-white/5 rounded-3xl border border-white/10 backdrop-blur-sm px-6">
-            <MusicIcon className="w-16 h-16 mx-auto mb-4 text-gray-500 opacity-40" />
-            <h3 className="text-lg font-semibold text-white mb-2">
-              No Songs Found
-            </h3>
-            <p className="text-sm text-gray-400 max-w-md mx-auto mb-6">
-              {activeCategory?.name &&
-              activeCategorySlug !== "for-you" &&
-              activeCategorySlug !== "default"
-                ? `No suitable ${activeCategory.name} videos found.`
-                : "No suitable songs found for your query."}
-            </p>
-            <button
-              type="button"
-              onClick={handleResetFilters}
-              className="px-5 py-2 rounded-full text-xs font-semibold text-white bg-white/10 hover:bg-white/20 border border-white/20 transition-all"
-            >
-              Clear Filters & View Catalog
-            </button>
+            {activeCategorySlug === "liked-music" ? (
+              <>
+                <HeartIcon className="w-16 h-16 mx-auto mb-4 text-rose-400 opacity-60 animate-pulse" />
+                <h3 className="text-lg font-semibold text-white mb-2">
+                  No Liked Songs Yet
+                </h3>
+                <p className="text-sm text-gray-400 max-w-md mx-auto mb-6">
+                  Click the heart icon on any song card or player bar to save your favorite music here.
+                </p>
+                <button
+                  type="button"
+                  onClick={() => setActiveCategorySlug("for-you")}
+                  className="px-5 py-2.5 rounded-full text-xs font-semibold text-white shadow-lg transition-all"
+                  style={{ backgroundColor: theme.primary, boxShadow: `0 0 15px ${theme.glow}` }}
+                >
+                  Explore For You Recommendations
+                </button>
+              </>
+            ) : (
+              <>
+                <MusicIcon className="w-16 h-16 mx-auto mb-4 text-gray-500 opacity-40" />
+                <h3 className="text-lg font-semibold text-white mb-2">
+                  No Songs Found
+                </h3>
+                <p className="text-sm text-gray-400 max-w-md mx-auto mb-6">
+                  {activeCategory?.name &&
+                  activeCategorySlug !== "for-you" &&
+                  activeCategorySlug !== "default"
+                    ? `No suitable ${activeCategory.name} videos found.`
+                    : "No suitable songs found for your query."}
+                </p>
+                <button
+                  type="button"
+                  onClick={handleResetFilters}
+                  className="px-5 py-2 rounded-full text-xs font-semibold text-white bg-white/10 hover:bg-white/20 border border-white/20 transition-all"
+                >
+                  Clear Filters & View Catalog
+                </button>
+              </>
+            )}
           </div>
         ) : (
           <>

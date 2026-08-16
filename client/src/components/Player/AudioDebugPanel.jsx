@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useMusic } from '../../context/MusicContext.jsx';
+import { ChevronIcon } from '../icons/Icons.jsx';
 
 export default function AudioDebugPanel() {
   const [isOpen, setIsOpen] = useState(false);
@@ -19,7 +20,8 @@ export default function AudioDebugPanel() {
         className="bg-black/90 text-red-400 border border-red-500/40 px-3 py-1.5 rounded-lg shadow-lg hover:bg-black transition-all flex items-center gap-2"
       >
         <span className={`w-2.5 h-2.5 rounded-full ${audioState === 'playing' ? 'bg-emerald-400 animate-pulse' : 'bg-red-400'}`}></span>
-        YouTube Diagnostics {isOpen ? '▲' : '▼'}
+        <span>YouTube Diagnostics</span>
+        <ChevronIcon direction={isOpen ? 'up' : 'down'} className="w-3.5 h-3.5" />
       </button>
 
       {isOpen && (

@@ -1,4 +1,4 @@
-const TIMEOUT_MS = 8000;
+const TIMEOUT_MS = 6000;
 const BASE_URL = 'https://api.lyrics.ovh/v1';
 
 function normaliseLines(raw) {
@@ -18,11 +18,11 @@ function normaliseLines(raw) {
 
 export async function fetchFromOvh(artist, title) {
   if (!artist || !title) {
-    return { found: false, lyrics: [], reason: 'missing_params' };
+    return { found: false, lyrics: null, reason: 'missing_params' };
   }
 
   const url = `${BASE_URL}/${encodeURIComponent(artist)}/${encodeURIComponent(title)}`;
-  console.log('[LYRICS REQUEST]', { artist, title, url });
+  console.log('[LYRICS.OVH REQUEST]', { artist, title, url });
 
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
@@ -33,26 +33,26 @@ export async function fetchFromOvh(artist, title) {
 
     if (!res.ok) {
       const reason = res.status === 404 ? 'not_found' : 'provider_error';
-      console.log('[LYRICS RESPONSE]', { found: false, reason, status: res.status });
-      return { found: false, lyrics: [], reason };
+      console.log('[LYRICS.OVH RESPONSE]', { found: false, reason, status: res.status });
+      return { found: false, lyrics: null, reason };
     }
 
     const data = await res.json();
     const lines = normaliseLines(data?.lyrics);
 
     if (!lines) {
-      console.log('[LYRICS RESPONSE]', { found: false, reason: 'not_found' });
-      return { found: false, lyrics: [], reason: 'not_found' };
+      console.log('[LYRICS.OVH RESPONSE]', { found: false, reason: 'not_found' });
+      return { found: false, lyrics: null, reason: 'not_found' };
     }
 
-    console.log('[LYRICS RESPONSE]', { found: true, lineCount: lines.length, source: 'lyrics.ovh' });
+    console.log('[LYRICS.OVH RESPONSE]', { found: true, lineCount: lines.length, source: 'lyrics.ovh' });
     return { found: true, lyrics: lines, source: 'lyrics.ovh' };
 
   } catch (err) {
     clearTimeout(timer);
     const isTimeout = err.name === 'AbortError';
     const reason = isTimeout ? 'timeout' : 'provider_error';
-    console.log('[LYRICS RESPONSE]', { found: false, reason, error: err.message });
-    return { found: false, lyrics: [], reason };
+    console.log('[LYRICS.OVH RESPONSE]', { found: false, reason, error: err.message });
+    return { found: false, lyrics: null, reason };
   }
 }

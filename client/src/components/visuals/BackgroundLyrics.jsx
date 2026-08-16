@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import Lenis from "lenis";
 import { useMusic } from "../../context/MusicContext.jsx";
@@ -9,6 +9,7 @@ import {
   parseYouTubeTitle,
 } from "../../services/lyricsService.js";
 import { getSongThumbnail } from "../../services/songNormalizer.js";
+import { alignLyricsToDuration, getActiveLineIndex } from "../../services/lyricsAlignerService.js";
 
 export default function BackgroundLyrics() {
   const {
@@ -60,8 +61,10 @@ export default function BackgroundLyrics() {
       .then((result) => {
         if (myRequestId !== requestIdRef.current) return;
 
-        if (result && result.length > 0) {
-          setLines(result);
+        const lyricsList = (result && result.found && Array.isArray(result.lyrics)) ? result.lyrics : (Array.isArray(result) ? result : null);
+
+        if (lyricsList && lyricsList.length > 0) {
+          setLines(lyricsList);
           setLyricsStatus("found");
         } else {
           setLines([]);
@@ -112,14 +115,17 @@ export default function BackgroundLyrics() {
   }, []);
 
   const totalDuration =
-    (actualDuration > 0 ? actualDuration : currentSong?.duration) || 0;
-  const activeIdx =
-    lines.length > 0 && totalDuration > 0
-      ? Math.min(
-          lines.length - 1,
-          Math.max(0, Math.floor((currentTime / totalDuration) * lines.length)),
-        )
-      : 0;
+    (actualDuration > 0 ? actualDuration : currentSong?.duration) || 210;
+
+  const alignedLines = useMemo(() => {
+    if (lines.length === 0 || totalDuration <= 0) return [];
+    return alignLyricsToDuration(lines, totalDuration);
+  }, [lines, totalDuration]);
+
+  const activeIdx = useMemo(() => {
+    if (alignedLines.length === 0) return 0;
+    return getActiveLineIndex(alignedLines, currentTime);
+  }, [alignedLines, currentTime]);
 
   useEffect(() => {
     if (!showLyrics || !containerRef.current || lyricsStatus !== "found")

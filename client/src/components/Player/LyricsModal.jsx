@@ -1,111 +1,81 @@
+import { useState, useEffect, useRef, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { CloseIcon, MusicIcon } from '../icons/Icons.jsx';
+import { fetchLyrics } from '../../services/lyricsService.js';
+import { alignLyricsToDuration, getActiveLineIndex } from '../../services/lyricsAlignerService.js';
 
-const lyricsDatabase = {
-  "kesariya": [
-    "Mujhko itna bataaye koi",
-    "Kaise tujhse dil na lagaaye koi",
-    "Rabba ne tujhko banaane mein",
-    "Kardi hain husn ki khaali tijoriyaan",
-    "Kajre ki siyaahi se likhi",
-    "Hain tu ne jaane kitno ki kismat goriyaan",
-    "Kesariya tera ishq hai piya",
-    "Rang jaaun jo main haath lagaun",
-    "Din beete saara teri fikr mein",
-    "Rain saari teri khair manaun"
-  ],
-  "apna bana le": [
-    "Tu mera koi na hoke bhi kuch laage",
-    "Tu mera koi na hoke bhi kuch laage",
-    "Kiya re jo bhi toone mujhe ab na hoshein",
-    "Apna bana le piya",
-    "Apna bana le piya",
-    "Apna bana le mujhe",
-    "Apna bana le piya",
-    "Dil ke nagar mein shehar tu basa le",
-    "Apna bana le piya"
-  ],
-  "husn": [
-    "Dekho dekho kaise baatein ye banaaye",
-    "Jhoothi meethi baaton se ye mujhko behlaaye",
-    "Par husn tera jaisa dekha nahi kahin",
-    "Aankhon mein leke pyaar ki ravaiya",
-    "Ab to tu aaja mere paas chaliya",
-    "Husn tera jaisa dekha nahi kahin",
-    "Baaton baaton mein din ye dhal jaaye"
-  ],
-  "chaleya": [
-    "Ishq mein dil bana hai chaliya",
-    "Tere piche piche chaliya",
-    "Dil mera ab tera ho chaliya",
-    "Haan tu hi hai bas tu hi hai sohniye",
-    "Mera har pal ab tera ho chaliya",
-    "Sajda main tera karun har ghadi",
-    "Ishq mein dil bana hai chaliya"
-  ],
-  "o maahi": [
-    "O maahi mera o maahi",
-    "O maahi mera o maahi",
-    "Tere bina jeena bhi kya jeena",
-    "Dil ne tujhko hi pukaara hai",
-    "O maahi mera o maahi",
-    "Tu hi to mera ek sahaara hai"
-  ],
-  "tum hi ho": [
-    "Hum tere bin ab reh nahi sakte",
-    "Tere bina kya wajood mera",
-    "Tujhse juda agar ho jaayenge",
-    "To khud se hi ho jaayenge judaa",
-    "Kyunki tum hi ho",
-    "Ab tum hi ho",
-    "Zindagi ab tum hi ho",
-    "Chain bhi, mera dard bhi",
-    "Meri aashiqui ab tum hi ho"
-  ],
-  "pehle bhi main": [
-    "Pehle bhi main tumse mila hoon",
-    "Pehli dafa hi milke lagaa",
-    "Aankhon se aankhein milaati ho jab tum",
-    "Dhadkan ye meri rukti hai zaroor",
-    "Pehle bhi main tumse mila hoon"
-  ]
-};
+export default function LyricsModal({ isOpen, onClose, currentSong, currentTime = 0, theme }) {
+  const [loading, setLoading] = useState(false);
+  const [lyrics, setLyrics] = useState(null);
+  const [found, setFound] = useState(false);
+  const [errorMessage, setErrorMessage] = useState(null);
 
-export default function LyricsModal({ isOpen, onClose, currentSong, currentTime, theme }) {
-  if (!isOpen || !currentSong) return null;
+  const fetchAbortRef = useRef(null);
 
-  const getLyrics = () => {
-    const titleLower = (currentSong.title || '').toLowerCase();
-    for (const [key, lines] of Object.entries(lyricsDatabase)) {
-      if (titleLower.includes(key)) {
-        return lines;
-      }
+  const totalDuration = currentSong?.duration || 210;
+
+  const alignedLines = useMemo(() => {
+    if (!lyrics || lyrics.length === 0) return [];
+    return alignLyricsToDuration(lyrics, totalDuration);
+  }, [lyrics, totalDuration]);
+
+  const activeIdx = useMemo(() => {
+    if (alignedLines.length === 0) return 0;
+    return getActiveLineIndex(alignedLines, currentTime);
+  }, [alignedLines, currentTime]);
+
+  const loadLyricsForSong = async () => {
+    if (!currentSong) return;
+
+    if (fetchAbortRef.current) {
+      fetchAbortRef.current.abort();
     }
 
-    return [
-      `♪ ${currentSong.title || 'Song'} ♪`,
-      `Artist: ${currentSong.artist || 'Unknown Artist'}`,
-      "",
-      "Sun raha hai na tu",
-      "Dil ki har ek sadaa",
-      "Teri yaadon mein beete raatein",
-      "Kyun door tu mujhse chala",
-      "",
-      "Har lamha tera hi khayaal hai",
-      "Dil ka har ek taar tera sawal hai",
-      "Sangeet ki is dhun mein khoye hum",
-      "Pyaar ki is raah mein chalte hum",
-      "",
-      "♪ Instrumental Solo ♪",
-      "",
-      "Aankhon mein tera hi chehra rahe",
-      "Dhadkan mein teri hi saansien rahe",
-      "Hamesha tu mere paas rahe"
-    ];
+    const controller = new AbortController();
+    fetchAbortRef.current = controller;
+
+    setLoading(true);
+    setLyrics(null);
+    setFound(false);
+    setErrorMessage(null);
+
+    try {
+      const data = await fetchLyrics(currentSong, controller.signal);
+      if (controller.signal.aborted) return;
+
+      if (data.success && data.found && Array.isArray(data.lyrics) && data.lyrics.length > 0) {
+        setLyrics(data.lyrics);
+        setFound(true);
+      } else if (data.success && !data.found) {
+        setFound(false);
+        setLyrics(null);
+      } else {
+        setErrorMessage(data.message || 'Unable to load lyrics');
+      }
+    } catch (err) {
+      if (err.name === 'AbortError') return;
+      console.error('[LYRICS MODAL] Fetch error:', err.message);
+      setErrorMessage('Unable to load lyrics');
+    } finally {
+      if (!controller.signal.aborted) {
+        setLoading(false);
+      }
+    }
   };
 
-  const lines = getLyrics();
-  const activeLineIndex = Math.floor((currentTime / (currentSong.duration || 240)) * lines.length);
+  useEffect(() => {
+    if (isOpen && currentSong) {
+      loadLyricsForSong();
+    }
+
+    return () => {
+      if (fetchAbortRef.current) {
+        fetchAbortRef.current.abort();
+      }
+    };
+  }, [isOpen, currentSong?.id || currentSong?.youtubeVideoId || currentSong?.title]);
+
+  if (!isOpen || !currentSong) return null;
 
   return (
     <AnimatePresence>
@@ -131,6 +101,7 @@ export default function LyricsModal({ isOpen, onClose, currentSong, currentTime,
             </div>
             
             <button 
+              type="button"
               onClick={onClose}
               className="w-10 h-10 rounded-full bg-white/10 hover:bg-white/20 text-gray-300 hover:text-white flex items-center justify-center transition-colors flex-shrink-0"
               title="Close Lyrics"
@@ -139,44 +110,65 @@ export default function LyricsModal({ isOpen, onClose, currentSong, currentTime,
             </button>
           </div>
 
-          {/* Lyrics Content Container */}
-          <div className="flex-1 overflow-y-auto py-8 px-2 space-y-4 scrollbar-thin scrollbar-thumb-white/20">
-            <div className="text-xs uppercase tracking-widest text-purple-400 font-semibold mb-6 flex items-center justify-center gap-2">
-              <MusicIcon className="w-4 h-4 animate-bounce" />
-              Lyrics & Karaoke Sync
-            </div>
-
-            {lines.map((line, idx) => {
-              const isActive = idx === activeLineIndex;
-              if (!line) return <div key={idx} className="h-4" />;
-              
-              return (
-                <motion.p
-                  key={idx}
-                  animate={{
-                    scale: isActive ? 1.08 : 1,
-                    opacity: isActive ? 1 : 0.45
-                  }}
-                  transition={{ duration: 0.3 }}
-                  className={`text-base md:text-xl font-medium transition-all ${
-                    isActive 
-                      ? 'text-white font-bold text-glow' 
-                      : 'text-gray-300'
-                  }`}
-                  style={{
-                    color: isActive ? theme?.accent || '#c4b5fd' : undefined
-                  }}
+          {/* Lyrics Body */}
+          <div className="flex-1 overflow-y-auto py-8 px-2 space-y-4 scrollbar-thin scrollbar-thumb-white/20 flex flex-col items-center min-h-[250px]">
+            {loading ? (
+              <div className="flex flex-col items-center justify-center gap-3 py-12 my-auto">
+                <div 
+                  className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2"
+                  style={{ borderColor: theme?.accent || '#c4b5fd' }}
+                />
+                <p className="text-sm font-medium text-purple-300 animate-pulse flex items-center gap-2">
+                  <MusicIcon className="w-4 h-4 animate-bounce" />
+                  Loading lyrics...
+                </p>
+              </div>
+            ) : errorMessage ? (
+              <div className="flex flex-col items-center justify-center gap-4 py-8 my-auto">
+                <p className="text-base text-rose-400 font-medium">{errorMessage}</p>
+                <button
+                  type="button"
+                  onClick={loadLyricsForSong}
+                  className="px-4 py-2 rounded-xl text-xs font-semibold text-white bg-white/10 hover:bg-white/20 border border-white/20 transition-all"
+                  style={{ backgroundColor: theme?.primary }}
                 >
-                  {line}
-                </motion.p>
-              );
-            })}
+                  Retry
+                </button>
+              </div>
+            ) : !found || !lyrics || lyrics.length === 0 ? (
+              <div className="flex flex-col items-center justify-center gap-3 py-12 text-center px-4 my-auto">
+                <MusicIcon className="w-12 h-12 text-gray-600 opacity-40 mb-2" />
+                <h4 className="text-lg font-semibold text-gray-200">Lyrics unavailable for this song</h4>
+                <p className="text-xs text-gray-400 max-w-sm">
+                  We couldn't find verified lyrics for "{currentSong.title}".
+                </p>
+              </div>
+            ) : (
+              <div className="w-full space-y-4 my-auto text-center">
+                {lyrics.map((line, idx) => {
+                  const isActive = idx === activeIdx;
+                  return (
+                    <p
+                      key={idx}
+                      className={`text-base md:text-xl font-medium transition-all duration-300 cursor-default ${
+                        isActive
+                          ? 'text-white font-bold scale-105 drop-shadow-[0_0_12px_rgba(196,181,253,0.8)]'
+                          : 'text-gray-400/70 hover:text-gray-200'
+                      }`}
+                      style={isActive ? { color: theme?.accent || '#c4b5fd' } : {}}
+                    >
+                      {line}
+                    </p>
+                  );
+                })}
+              </div>
+            )}
           </div>
 
           {/* Footer Note */}
           <div className="pt-4 border-t border-white/10 text-xs text-gray-400 flex items-center justify-between">
-            <span>Synchronized Lyrics</span>
-            <span className="font-mono text-purple-300">Audio Engine</span>
+            <span>Verified AI Aligned Lyrics</span>
+            <span className="font-mono text-purple-300">Duration Sync Active</span>
           </div>
         </motion.div>
       </div>

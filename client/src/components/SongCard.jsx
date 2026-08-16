@@ -1,16 +1,17 @@
 import { motion } from 'framer-motion';
 import { useMusic } from '../context/MusicContext.jsx';
 import { useTheme } from '../context/ThemeContext.jsx';
-import { PlayIcon, PauseIcon } from './icons/Icons.jsx';
+import { PlayIcon, PauseIcon, HeartIcon } from './icons/Icons.jsx';
 import { getSongThumbnail } from '../services/songNormalizer.js';
 
 export default function SongCard({ song, playlist }) {
-  const { currentSong, isPlaying, playSong, togglePlay } = useMusic();
+  const { currentSong, isPlaying, playSong, togglePlay, isSongLiked, toggleLikeSong } = useMusic();
   const { theme } = useTheme();
   
   const songId = song?.youtubeVideoId || song?.id || song?._id;
   const currentId = currentSong?.youtubeVideoId || currentSong?.id || currentSong?._id;
   const isActive = Boolean(songId && currentId && currentId === songId);
+  const isLiked = isSongLiked(songId);
 
   const handlePlay = (e) => {
     e.stopPropagation();
@@ -19,6 +20,11 @@ export default function SongCard({ song, playlist }) {
     } else {
       playSong(song, playlist);
     }
+  };
+
+  const handleLike = (e) => {
+    e.stopPropagation();
+    toggleLikeSong(song);
   };
 
   const thumbnailSrc = getSongThumbnail(song);
@@ -49,6 +55,21 @@ export default function SongCard({ song, playlist }) {
           }}
           className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
         />
+
+        {/* Like/Heart Button */}
+        <button
+          type="button"
+          onClick={handleLike}
+          className={`absolute top-2 right-2 z-20 p-2 rounded-full backdrop-blur-md transition-all duration-300 ${
+            isLiked
+              ? 'bg-rose-500/80 text-white shadow-lg shadow-rose-500/50 scale-110'
+              : 'bg-black/40 text-white/70 hover:text-white hover:bg-black/60 opacity-0 group-hover:opacity-100'
+          }`}
+          title={isLiked ? "Unlike song" : "Like song"}
+        >
+          <HeartIcon filled={isLiked} className="w-4 h-4" />
+        </button>
+
         <div className={`absolute inset-0 bg-black/40 flex items-center justify-center transition-opacity duration-300 ${isActive || 'opacity-0 group-hover:opacity-100'}`}>
           <button 
             type="button"

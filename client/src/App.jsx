@@ -3,6 +3,8 @@ import Home from './pages/Home.jsx';
 import MusicPlayer from './components/Player/MusicPlayer.jsx';
 import SceneBackground from './components/visuals/SceneBackground.jsx';
 import BackgroundLyrics from './components/visuals/BackgroundLyrics.jsx';
+import PulseMindChat from './components/PulseMind/PulseMindChat.jsx';
+import ParoWidget from './components/PARO/ParoWidget.jsx';
 import { useTheme } from './context/ThemeContext.jsx';
 
 function App() {
@@ -51,6 +53,9 @@ function App() {
       <main className="container mx-auto px-4 md:px-8 py-8 relative z-10">
         <Home />
       </main>
+
+      {/* PARO Voice-First AI Companion */}
+      <ParoWidget />
 
       <MusicPlayer />
     </div>

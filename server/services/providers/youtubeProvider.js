@@ -1,7 +1,24 @@
 import mongoose from "mongoose";
 import YouTubeCache from "../../models/YouTubeCache.js";
 
-const CACHE_VERSION = "v6";
+const CACHE_VERSION = "v7";
+
+const dailyForYouRotations = [
+  ["Top Hindi songs official 2026", "Latest Bollywood releases"],
+  ["Trending Hindi chartbusters", "Viral Indian songs"],
+  ["Best Hindi love songs", "Popular Bollywood tracks"],
+  ["Superhit Hindi music", "Indian pop hits"],
+  ["Soulful Hindi melodies", "Top Hindi vocalists"],
+  ["Bollywood party anthems", "Hindi unplugged hits"],
+  ["Hindi indie melodies", "Classic Hindi hits"],
+];
+
+function getDynamicForYouQueries() {
+  const now = new Date();
+  const dayOfYear = Math.floor((now - new Date(now.getFullYear(), 0, 0)) / (1000 * 60 * 60 * 24));
+  const idx = dayOfYear % dailyForYouRotations.length;
+  return dailyForYouRotations[idx];
+}
 
 const categoryQueries = {
   "for-you": ["Hindi songs official", "Bollywood hits official"],
@@ -319,7 +336,7 @@ function isPlayableSongVideo(snippet, contentDetails, status) {
   }
 
   const durationSec = parseISO8601Duration(contentDetails?.duration);
-  if (durationSec < 50 || durationSec > 1500) {
+  if (durationSec < 80 || durationSec > 1500) {
     return false;
   }
 
@@ -398,7 +415,8 @@ export async function searchYouTubeVideos(
     };
   }
 
-  const cacheKey = `yt:${CACHE_VERSION}:${categorySlug}:${query}:${limit}:${pageToken}`;
+  const todayDateStr = new Date().toISOString().slice(0, 10);
+  const cacheKey = `yt:${CACHE_VERSION}:${categorySlug}:${todayDateStr}:${query}:${limit}:${pageToken}`;
 
   if (mongoose.connection.readyState === 1) {
     try {
@@ -625,15 +643,15 @@ export async function searchSongs({
     );
   } else if (query) {
     return await searchYouTubeVideos(
-      `${query} Hindi songs official`,
+      query,
       categorySlug,
       limit,
       pageToken,
     );
   } else {
-    const queries = categoryQueries[categorySlug] || [
-      "Bollywood Hindi hits official",
-    ];
+    const queries = categorySlug === "for-you"
+      ? getDynamicForYouQueries()
+      : (categoryQueries[categorySlug] || ["Bollywood Hindi hits official"]);
 
     if (limit > 50 && queries.length > 1) {
       const halfLimit = Math.ceil(limit / queries.length);

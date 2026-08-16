@@ -6,8 +6,19 @@ import connectDB from './config/db.js';
 import songRoutes from './routes/songs.js';
 import categoryRoutes from './routes/categories.js';
 import lyricsRoutes from './routes/lyricsRoutes.js';
+import recommendationRoutes from './routes/recommendationRoutes.js';
+import likedRoutes from './routes/likedRoutes.js';
+import deviceRoutes from './routes/deviceRoutes.js';
+import pulseMindRoutes from './routes/pulseMindRoutes.js';
+import paroRoutes from './routes/paroRoutes.js';
+import { ensurePythonVoiceServiceRunning } from './services/pythonVoiceBridge.js';
 
 dotenv.config();
+
+// Auto-ensure Python Voice Microservice is running in local dev
+ensurePythonVoiceServiceRunning().catch((err) => {
+  console.warn('[PARO VOICE BRIDGE WARN] Startup check notice:', err.message);
+});
 
 const app = express();
 
@@ -51,6 +62,11 @@ app.get('/api/health', (req, res) => {
 app.use('/api/songs', songRoutes);
 app.use('/api/categories', categoryRoutes);
 app.use('/api/lyrics', lyricsRoutes);
+app.use('/api/recommendations', recommendationRoutes);
+app.use('/api/liked', likedRoutes);
+app.use('/api/device', deviceRoutes);
+app.use('/api/pulsemind', pulseMindRoutes);
+app.use('/api/paro', paroRoutes);
 
 // Catch-all route handler for unknown API paths
 app.use('/api/*', (req, res) => {

@@ -2,14 +2,15 @@ import { AnimatePresence, motion } from 'framer-motion';
 import { useEffect, useRef } from 'react';
 import { useMusic } from '../../context/MusicContext.jsx';
 import { useTheme } from '../../context/ThemeContext.jsx';
-import { LyricsIcon, NextIcon, PauseIcon, PlayIcon, PrevIcon, ShuffleIcon, VolumeIcon } from '../icons/Icons.jsx';
+import { LyricsIcon, NextIcon, PauseIcon, PlayIcon, PrevIcon, ShuffleIcon, VolumeIcon, HeartIcon } from '../icons/Icons.jsx';
 import { getSongThumbnail } from '../../services/songNormalizer.js';
 
 export default function MusicPlayer() {
   const { 
     currentSong, audioState, isPlaying, playbackError, togglePlay, retryPlayback, playNext, playPrev, 
     progress, volume, isMuted, setVolume, toggleMute, seek, currentTime, actualDuration,
-    isShuffled, setIsShuffled, showLyrics, toggleLyrics, initYouTubePlayerContainer, playerReady
+    isShuffled, setIsShuffled, showLyrics, toggleLyrics, initYouTubePlayerContainer, playerReady,
+    isSongLiked, toggleLikeSong
   } = useMusic();
   const { theme } = useTheme();
   const hasInitRef = useRef(false);
@@ -104,9 +105,25 @@ export default function MusicPlayer() {
                   className="w-full h-full object-cover" 
                 />
               </div>
-              <div className="min-w-0 flex-1">
-                <h4 className="font-semibold text-white truncate text-glow">{currentSong?.title || 'No Song Selected'}</h4>
-                <p className="text-sm text-gray-300 font-medium truncate">{currentSong?.artist || 'Select a song to start playback'}</p>
+              <div className="min-w-0 flex-1 flex items-center justify-between gap-2">
+                <div className="min-w-0 flex-1">
+                  <h4 className="font-semibold text-white truncate text-glow">{currentSong?.title || 'No Song Selected'}</h4>
+                  <p className="text-sm text-gray-300 font-medium truncate">{currentSong?.artist || 'Select a song to start playback'}</p>
+                </div>
+                {currentSong && (
+                  <button
+                    type="button"
+                    onClick={() => toggleLikeSong(currentSong)}
+                    className={`p-2 rounded-full transition-transform hover:scale-110 flex-shrink-0 ${
+                      isSongLiked(currentSong?.youtubeVideoId || currentSong?.id)
+                        ? 'text-rose-400'
+                        : 'text-gray-400 hover:text-white'
+                    }`}
+                    title={isSongLiked(currentSong?.youtubeVideoId || currentSong?.id) ? "Unlike Song" : "Like Song"}
+                  >
+                    <HeartIcon filled={isSongLiked(currentSong?.youtubeVideoId || currentSong?.id)} className="w-5 h-5" />
+                  </button>
+                )}
               </div>
             </div>
             <div className="flex flex-col items-center w-full md:w-1/3 gap-2">
