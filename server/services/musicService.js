@@ -1,7 +1,3 @@
-/**
- * Music Service
- * Orchestrates music providers and audio quality services.
- */
 
 import { fetchTracksFromProvider, checkProviderCapabilities } from './providers/musicProvider.js';
 

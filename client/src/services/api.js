@@ -1,23 +1,9 @@
-/**
- * Frontend API Service
- *
- * All fetch() calls have:
- *  - AbortController support (caller can cancel)
- *  - 15-second timeout (prevents permanent loading state if server hangs)
- *  - Response normalization via normalizeSong
- *  - Diagnostic response logging
- */
-
 import { normalizeSong } from './songNormalizer.js';
 
 const API_URL = import.meta.env.VITE_API_BASE_URL || import.meta.env.VITE_API_URL || "/api";
 
-// Default timeout for all API requests (15 seconds)
 const DEFAULT_TIMEOUT_MS = 15_000;
 
-/**
- * Wrapper around fetch() that adds a timeout and signal handling.
- */
 async function fetchWithTimeout(url, options = {}, timeoutMs = DEFAULT_TIMEOUT_MS) {
   const timeoutController = new AbortController();
   const timeoutId = setTimeout(() => timeoutController.abort(), timeoutMs);
@@ -90,14 +76,15 @@ export const getCategoryBySlug = async (slug, signal) => {
 export const getSongs = async (params = {}, signal) => {
   try {
     const queryParams = new URLSearchParams();
-    if (params.category) queryParams.append('category', params.category);
-    if (params.search)   queryParams.append('search',   params.search);
-    if (params.artist)   queryParams.append('artist',   params.artist);
-    if (params.page)     queryParams.append('page',     params.page);
-    if (params.limit)    queryParams.append('limit',    params.limit);
+    if (params.category)   queryParams.append('category', params.category);
+    if (params.search)     queryParams.append('search', params.search);
+    if (params.artist)     queryParams.append('artist', params.artist);
+    if (params.pageToken)  queryParams.append('pageToken', params.pageToken);
+    if (params.limit && Number.isFinite(params.limit)) queryParams.append('limit', params.limit);
+    queryParams.append('paginated', 'true');
 
     const queryString = queryParams.toString();
-    const url = `${API_URL}/songs${queryString ? `?${queryString}` : ''}`;
+    const url = `${API_URL}/songs?${queryString}`;
 
     const t0 = Date.now();
     const response = await fetchWithTimeout(url, { signal }, DEFAULT_TIMEOUT_MS);
@@ -110,13 +97,13 @@ export const getSongs = async (params = {}, signal) => {
     const rawList = Array.isArray(data) ? data : (data.songs || []);
     const normalizedSongs = rawList.map(normalizeSong).filter(Boolean);
 
-    // Diagnostic logging (NO SECRETS LOGGED)
     console.log('[API DIAGNOSTIC]', {
       environment: import.meta.env.MODE || 'production',
       endpoint: url,
       status: response.status,
       songCount: normalizedSongs.length,
       category: params.category || 'all',
+      nextPageToken: data.nextPageToken || null,
       durationMs: Date.now() - t0,
       firstSong: normalizedSongs[0] ? {
         id: normalizedSongs[0].id,
@@ -126,7 +113,12 @@ export const getSongs = async (params = {}, signal) => {
       } : null
     });
 
-    return normalizedSongs;
+    return {
+      songs: normalizedSongs,
+      nextPageToken: data.nextPageToken || null,
+      hasMore: !!data.nextPageToken,
+      total: data.total ?? normalizedSongs.length,
+    };
   } catch (error) {
     if (error.name === 'AbortError') {
       console.warn('[API] getSongs aborted or timed out');

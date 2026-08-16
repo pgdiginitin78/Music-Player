@@ -9,12 +9,11 @@ export default function MusicPlayer() {
   const { 
     currentSong, audioState, isPlaying, playbackError, togglePlay, retryPlayback, playNext, playPrev, 
     progress, volume, isMuted, setVolume, toggleMute, seek, currentTime, actualDuration,
-    isShuffled, setIsShuffled, showLyrics, toggleLyrics, initYouTubePlayerContainer
+    isShuffled, setIsShuffled, showLyrics, toggleLyrics, initYouTubePlayerContainer, playerReady
   } = useMusic();
   const { theme } = useTheme();
   const hasInitRef = useRef(false);
 
-  // Initialize YouTube IFrame Player DOM container ONCE (off-screen hidden player)
   useEffect(() => {
     if (hasInitRef.current) return;
     hasInitRef.current = true;
@@ -30,7 +29,6 @@ export default function MusicPlayer() {
 
   const totalDurationSeconds = actualDuration || (typeof currentSong?.duration === 'number' ? currentSong.duration : 210);
 
-  // Status Banner Message
   const renderStatusBanner = () => {
     if (playbackError) {
       return (
@@ -80,7 +78,6 @@ export default function MusicPlayer() {
 
   return (
     <>
-      {/* Hidden Persistent YouTube Player Container for Background Audio */}
       <div className="fixed top-0 left-0 w-1 h-1 opacity-0 pointer-events-none -z-50 overflow-hidden">
         <div id="youtube-player-iframe" className="w-full h-full" />
       </div>
@@ -94,10 +91,7 @@ export default function MusicPlayer() {
         >
           <div className="glass-panel max-w-6xl mx-auto rounded-2xl p-4 flex flex-col md:flex-row items-center justify-between gap-4 relative overflow-hidden">
             
-            {/* Status / Buffering / Error Banner */}
             {renderStatusBanner()}
-
-            {/* Song & Artist Info */}
             <div className="flex items-center gap-4 w-full md:w-1/3 mt-2 md:mt-0">
               <div className="w-14 h-14 rounded-lg overflow-hidden flex-shrink-0 shadow-lg shadow-black/50 relative">
                 <img 
@@ -105,11 +99,7 @@ export default function MusicPlayer() {
                   alt={currentSong?.title || "Song Cover"} 
                   onError={(e) => {
                     e.currentTarget.onerror = null;
-                    if (currentSong?.youtubeVideoId && !e.currentTarget.src.includes('hqdefault')) {
-                      e.currentTarget.src = `https://i.ytimg.com/vi/${currentSong.youtubeVideoId}/hqdefault.jpg`;
-                    } else {
-                      e.currentTarget.src = "/images/default-album.webp";
-                    }
+                    e.currentTarget.src = "/images/default-album.webp";
                   }}
                   className="w-full h-full object-cover" 
                 />
@@ -119,8 +109,6 @@ export default function MusicPlayer() {
                 <p className="text-sm text-gray-300 font-medium truncate">{currentSong?.artist || 'Select a song to start playback'}</p>
               </div>
             </div>
-
-            {/* Central Controls & Progress Bar */}
             <div className="flex flex-col items-center w-full md:w-1/3 gap-2">
               <div className="flex items-center gap-6">
                 <button 
@@ -139,15 +127,15 @@ export default function MusicPlayer() {
                 <button 
                   type="button"
                   onClick={togglePlay}
-                  disabled={Boolean(currentSong?.isPlayable === false)}
+                  disabled={Boolean(currentSong?.isPlayable === false) || !playerReady}
                   className={`w-12 h-12 text-white rounded-full flex items-center justify-center transition-transform ${
-                    currentSong?.isPlayable === false ? 'opacity-50 cursor-not-allowed' : 'hover:scale-105'
+                    (currentSong?.isPlayable === false || !playerReady) ? 'opacity-50 cursor-not-allowed' : 'hover:scale-105'
                   }`}
                   style={{ 
                     backgroundColor: theme.primary,
                     boxShadow: `0 4px 15px ${theme.glow}`
                   }}
-                  title={currentSong?.isPlayable === false ? "PLAY DISABLED" : (isPlaying ? "Pause" : "Play")}
+                  title={currentSong?.isPlayable === false ? "PLAY DISABLED" : (!playerReady ? "Player Loading..." : (isPlaying ? "Pause" : "Play"))}
                 >
                   {isPlaying ? <PauseIcon className="w-6 h-6" /> : <PlayIcon className="w-6 h-6" />}
                 </button>
@@ -155,8 +143,6 @@ export default function MusicPlayer() {
                   <NextIcon className="w-6 h-6" />
                 </button>
               </div>
-
-              {/* Progress Bar */}
               <div className="flex items-center gap-2 w-full max-w-md text-xs text-gray-400">
                 <span>{formatTime(currentTime)}</span>
                 <div 
@@ -179,7 +165,6 @@ export default function MusicPlayer() {
               </div>
             </div>
 
-            {/* Lyrics Toggle & Volume Controls */}
             <div className="hidden md:flex items-center justify-end gap-4 w-1/3">
               <button 
                 type="button"

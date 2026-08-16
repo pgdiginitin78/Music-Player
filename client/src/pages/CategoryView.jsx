@@ -17,11 +17,12 @@ export default function CategoryView() {
 
   const fetchCategoryData = async () => {
     try {
+      setSongs([]);
       setLoading(true);
       setError(null);
       const results = await Promise.allSettled([
         getCategoryBySlug(slug),
-        getSongs({ category: slug, limit: 25 })
+        getSongs({ category: slug, limit: Infinity })
       ]);
       
       const catResult = results[0];

@@ -44,6 +44,7 @@ class YouTubePlayerService {
         const prev = window.onYouTubeIframeAPIReady;
         window.onYouTubeIframeAPIReady = () => {
           this.apiLoaded = true;
+          if (import.meta.env.DEV) console.log('[DEBUG] YouTube API loaded');
           if (prev) prev();
           resolve();
         };
@@ -53,6 +54,7 @@ class YouTubePlayerService {
     return new Promise((resolve, reject) => {
       window.onYouTubeIframeAPIReady = () => {
         this.apiLoaded = true;
+        if (import.meta.env.DEV) console.log('[DEBUG] YouTube API loaded');
         resolve();
       };
 
@@ -109,6 +111,9 @@ class YouTubePlayerService {
           } catch (e) {}
         }
 
+        const originUrl = typeof window !== 'undefined' ? window.location.origin : '';
+        if (import.meta.env.DEV) console.log('[DEBUG] Current origin', originUrl);
+
         const playerOptions = {
           height: '100%',
           width: '100%',
@@ -118,28 +123,36 @@ class YouTubePlayerService {
             modestbranding: 1,
             rel: 0,
             enablejsapi: 1,
-            origin: typeof window !== 'undefined' ? window.location.origin : '',
+            origin: originUrl,
             playsinline: 1,
           },
           events: {
             onReady: (event) => {
               this.isReady = true;
               this._initialized = true;
-              console.log('[YOUTUBE PLAYER READY]');
+              if (import.meta.env.DEV) console.log('[DEBUG] Player ready');
+              
               if (this.pendingVideoId) {
+                if (import.meta.env.DEV) console.log('[DEBUG] Video ID loaded');
                 this.loadVideoById(this.pendingVideoId);
                 this.pendingVideoId = null;
+              }
+              if (this.pendingPlay) {
+                if (import.meta.env.DEV) console.log('[DEBUG] playVideo called');
+                this.playVideo();
+                this.pendingPlay = false;
               }
               if (onEvents.onReady) onEvents.onReady(event);
               resolve(this.player);
             },
             onStateChange: (event) => {
               // Always use the LATEST handlers (stored as instance props)
+              if (import.meta.env.DEV) console.log('[DEBUG] Current player state', event.data);
               if (this._onStateChange) this._onStateChange(event.data);
               this.notifyListeners('stateChange', event.data);
             },
             onError: (event) => {
-              console.error('[YOUTUBE PLAYER ERROR]', event.data);
+              if (import.meta.env.DEV) console.log('[DEBUG] Current error code', event.data);
               if (this._onError) this._onError(event.data);
               this.notifyListeners('error', event.data);
             },
@@ -153,6 +166,7 @@ class YouTubePlayerService {
 
         try {
           this.player = new window.YT.Player(elementId, playerOptions);
+          if (import.meta.env.DEV) console.log('[DEBUG] Player created');
         } catch (err) {
           console.warn('[YOUTUBE INIT PLAYER WARN]', err.message);
           resolve(null);
@@ -170,6 +184,10 @@ class YouTubePlayerService {
 
     if (this.isReady && this.player && typeof this.player.loadVideoById === 'function') {
       try {
+        if (import.meta.env.DEV) {
+          console.log('[DEBUG] Current video ID', cleanId);
+          console.log('[DEBUG] Video ID loaded');
+        }
         this.player.loadVideoById(cleanId);
       } catch (err) {
         console.error('[YOUTUBE LOAD VIDEO ERROR]', err);
@@ -187,10 +205,13 @@ class YouTubePlayerService {
   playVideo() {
     if (this.isReady && this.player && typeof this.player.playVideo === 'function') {
       try {
+        if (import.meta.env.DEV) console.log('[DEBUG] playVideo called');
         this.player.playVideo();
       } catch (e) {
         console.error('[YOUTUBE PLAY ERROR]', e);
       }
+    } else {
+      this.pendingPlay = true;
     }
   }
 

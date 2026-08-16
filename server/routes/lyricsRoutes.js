@@ -1,15 +1,18 @@
-/**
- * server/routes/lyricsRoutes.js
- *
- * GET /api/lyrics?artist=...&title=...
- *
- * Returns a normalised JSON response — always the same shape.
- */
-
 import { Router } from 'express';
 import { findLyrics } from '../services/lyricsService.js';
 
 const router = Router();
+
+const ROUTE_TIMEOUT_MS = 9000;
+
+function withRouteTimeout(promise, ms) {
+  return Promise.race([
+    promise,
+    new Promise((resolve) => {
+      setTimeout(() => resolve({ found: false, lyrics: [], reason: 'timeout' }), ms);
+    })
+  ]);
+}
 
 router.get('/', async (req, res) => {
   const { artist = '', title = '' } = req.query;
@@ -24,7 +27,7 @@ router.get('/', async (req, res) => {
   }
 
   try {
-    const result = await findLyrics(artist, title);
+    const result = await withRouteTimeout(findLyrics(artist, title), ROUTE_TIMEOUT_MS);
 
     return res.status(200).json({
       found: result.found,

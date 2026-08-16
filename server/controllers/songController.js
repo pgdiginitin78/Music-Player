@@ -3,22 +3,24 @@ import { getSong as getYouTubeSong, normalizeSong } from '../services/providers/
 
 export const getSongs = async (req, res, next) => {
   try {
-    const { category, query, search, q, artist, page = 1, limit = 25 } = req.query;
-    
+    const { category, query, search, q, artist, pageToken = '', limit } = req.query;
+
     const searchQuery = q || search || query || '';
+
+    const parsedLimit = parseInt(limit, 10);
+    const safeLimit = Number.isFinite(parsedLimit) ? parsedLimit : Infinity;
 
     const result = await searchSongs({
       query: searchQuery,
       category: category || '',
       artist: artist || '',
-      page: parseInt(page, 10) || 1,
-      limit: parseInt(limit, 10) || 25
+      pageToken,
+      limit: safeLimit
     });
 
     const rawSongs = result?.songs || [];
     const normalizedSongs = rawSongs.map(normalizeSong).filter(Boolean);
 
-    // Diagnostic logging (NO SECRETS LOGGED)
     console.log('[SONGS CONTROLLER RESPONSE DIAGNOSTIC]', {
       environment: process.env.NODE_ENV || 'development',
       endpoint: '/api/songs',
@@ -32,9 +34,9 @@ export const getSongs = async (req, res, next) => {
       } : null
     });
 
-    res.setHeader('X-Total-Count', result?.total || normalizedSongs.length);
-    res.setHeader('X-Page', result?.page || 1);
-    res.setHeader('X-Limit', result?.limit || 25);
+    res.setHeader('X-Total-Count', result?.total ?? normalizedSongs.length);
+    res.setHeader('X-Limit', Number.isFinite(safeLimit) ? safeLimit : 'unlimited');
+    res.setHeader('X-Has-More', String(!!result?.nextPageToken));
 
     if (req.query.paginated === 'true') {
       return res.status(200).json({
@@ -62,7 +64,7 @@ export const getSongById = async (req, res, next) => {
 
     const rawTrack = await getYouTubeSong(id);
     const track = normalizeSong(rawTrack);
-    
+
     if (!track) {
       return res.status(404).json({
         isPlayable: false,
@@ -70,7 +72,7 @@ export const getSongById = async (req, res, next) => {
         message: "Playback is unavailable for this YouTube video."
       });
     }
-    
+
     res.status(200).json(track);
   } catch (error) {
     console.error('[YOUTUBE SONG BY ID ERROR]', error.message);
@@ -95,16 +97,26 @@ export const getSongPlayback = async (req, res, next) => {
     const rawTrack = await getYouTubeSong(id);
     const track = normalizeSong(rawTrack);
 
+    if (!track || track.isPlayable === false) {
+      return res.status(404).json({
+        id: track?.id || id,
+        youtubeVideoId: track?.youtubeVideoId || id,
+        isPlayable: false,
+        error: "PLAYBACK_UNAVAILABLE",
+        message: "Playback is unavailable for this YouTube video."
+      });
+    }
+
     const playbackInfo = {
-      id: track?.id || id,
-      youtubeVideoId: track?.youtubeVideoId || id,
-      title: track?.title || 'YouTube Music',
-      artist: track?.artist || 'YouTube Artist',
-      album: track?.album || 'YouTube Music',
+      id: track.id,
+      youtubeVideoId: track.youtubeVideoId,
+      title: track.title,
+      artist: track.artist,
+      album: track.album,
       isPlayable: true,
       quality: 'Official YouTube playback',
       playbackMethod: 'youtube_iframe',
-      youtubeUrl: track?.youtubeUrl || `https://www.youtube.com/watch?v=${id}`
+      youtubeUrl: track.youtubeUrl || `https://www.youtube.com/watch?v=${id}`
     };
 
     return res.status(200).json(playbackInfo);
@@ -112,13 +124,12 @@ export const getSongPlayback = async (req, res, next) => {
   } catch (error) {
     console.error("[PLAYBACK INFO ERROR]", error.message);
 
-    return res.status(200).json({
+    return res.status(404).json({
       id: req.params?.id,
       youtubeVideoId: req.params?.id,
-      title: 'YouTube Music',
-      artist: 'YouTube Artist',
-      isPlayable: true,
-      playbackMethod: 'youtube_iframe'
+      isPlayable: false,
+      error: "PLAYBACK_UNAVAILABLE",
+      message: "Unable to determine playback status for this video."
     });
   }
 };
