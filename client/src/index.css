@@ -5,7 +5,11 @@
 @layer base {
   body {
     @apply bg-gray-950 text-white antialiased;
-    font-family: 'Inter', system-ui, -apple-system, sans-serif;
+    font-family:
+      "Inter",
+      system-ui,
+      -apple-system,
+      sans-serif;
   }
 }
 
@@ -21,7 +25,8 @@
 }
 
 @keyframes paroBreathingGlow {
-  0%, 100% {
+  0%,
+  100% {
     transform: scale(1);
     opacity: 0.9;
   }
@@ -35,7 +40,7 @@
   .glass-panel {
     @apply bg-white/10 backdrop-blur-lg border border-white/10 shadow-xl;
   }
-  
+
   .text-glow {
     text-shadow: 0 0 10px rgba(255, 255, 255, 0.5);
   }
@@ -53,10 +58,12 @@
     animation: paroRingExpand 2.8s cubic-bezier(0.215, 0.61, 0.355, 1) infinite;
   }
   .animate-paro-ring-2 {
-    animation: paroRingExpand 2.8s cubic-bezier(0.215, 0.61, 0.355, 1) infinite 0.7s;
+    animation: paroRingExpand 2.8s cubic-bezier(0.215, 0.61, 0.355, 1) infinite
+      0.7s;
   }
   .animate-paro-ring-3 {
-    animation: paroRingExpand 2.8s cubic-bezier(0.215, 0.61, 0.355, 1) infinite 1.4s;
+    animation: paroRingExpand 2.8s cubic-bezier(0.215, 0.61, 0.355, 1) infinite
+      1.4s;
   }
 
   /* Active User Speech Fast Concentric Rings */
@@ -64,10 +71,12 @@
     animation: paroRingExpand 1.5s cubic-bezier(0.215, 0.61, 0.355, 1) infinite;
   }
   .animate-paro-ring-fast-2 {
-    animation: paroRingExpand 1.5s cubic-bezier(0.215, 0.61, 0.355, 1) infinite 0.38s;
+    animation: paroRingExpand 1.5s cubic-bezier(0.215, 0.61, 0.355, 1) infinite
+      0.38s;
   }
   .animate-paro-ring-fast-3 {
-    animation: paroRingExpand 1.5s cubic-bezier(0.215, 0.61, 0.355, 1) infinite 0.76s;
+    animation: paroRingExpand 1.5s cubic-bezier(0.215, 0.61, 0.355, 1) infinite
+      0.76s;
   }
 
   .animate-paro-breath {

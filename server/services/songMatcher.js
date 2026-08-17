@@ -3,7 +3,6 @@
  * Enforces strict priority for explicit song requests over recommendation algorithms & popularity.
  */
 
-// Terms that indicate non-original versions unless explicitly requested
 const NON_ORIGINAL_KEYWORDS = [
   'cover', 'remix', 'reverbed', 'slowed', 'lofi', 'lo-fi',
   'karaoke', 'instrumental', 'live', 'tribute', 'acoustic',
@@ -12,7 +11,6 @@ const NON_ORIGINAL_KEYWORDS = [
 
 /**
  * Normalizes title/artist string by stripping punctuation, capitalization, and apostrophes.
- * Preserves core title words (does NOT strip version keywords so penalty check is accurate).
  */
 export function normalizeText(text = '') {
   if (!text || typeof text !== 'string') return '';
@@ -65,7 +63,7 @@ export function getSimilarityRatio(str1, str2) {
 
 /**
  * Extracts explicit song title and artist from natural language prompt.
- * e.g., "Play Believer by Imagine Dragons", "Play Kesariya", "Play Tum Hi Ho by Arijit Singh"
+ * Supports explicit play commands ("Play Tera Ghata") and bare song titles ("Tera Ghata", "तेरा घाटा बजाओ").
  */
 export function extractExactSongRequest(message = '') {
   if (!message || typeof message !== 'string') return null;
@@ -79,9 +77,9 @@ export function extractExactSongRequest(message = '') {
     'workout', 'party', 'lofi', 'pause', 'stop', 'skip', 'next', 'previous'
   ];
 
-  // Match pattern: "... play [song title] (by [artist])?"
+  // Match patterns for explicit play prefixes
   const playPatterns = [
-    /(?:paro,?\s*)?(?:can you\s+)?(?:please\s+)?(?:play|put on|start|listen to)\s+(?:the song\s+|that song\s+)?(.+)/i,
+    /(?:paro,?\s*)?(?:can you\s+)?(?:please\s+)?(?:play|put on|start|listen to|find|search for)\s+(?:the song\s+|that song\s+|a song\s+|track\s+)?(.+)/i,
     /^play\s+(.+)/i,
   ];
 
@@ -101,6 +99,22 @@ export function extractExactSongRequest(message = '') {
         extractedTitle = phrase;
       }
       break;
+    }
+  }
+
+  // Fallback: Bare song title handling (e.g. "Tera Ghata", "तेरा घाटा", "तेरा घाटा बजाओ", "tera ghata chalao")
+  if (!extractedTitle) {
+    let clean = raw
+      .replace(/^(?:चलो|सुनो|मुझे|ज़रा|प्लीज)\s+/i, '')
+      .replace(/\s+(?:बजाओ|चला दो|चलाओ|सुनना है|सुनवा दो|गाना बजाओ|सॉन्ग चलाओ|ग़ाना चला दो|baja do|chalao|play karo|sunao|bajao)$/i, '')
+      .trim();
+
+    const byMatch = clean.match(/(.+?)\s+(?:by|from|singing|singer)\s+(.+)/i);
+    if (byMatch) {
+      extractedTitle = byMatch[1].trim();
+      extractedArtist = byMatch[2].trim();
+    } else {
+      extractedTitle = clean;
     }
   }
 
@@ -136,17 +150,6 @@ export function extractExactSongRequest(message = '') {
 
 /**
  * Reusable Song Matcher with Priority Scoring & Penalty Filters.
- *
- * Match Priority:
- * 1. Exact Title + Exact Artist (150 pts)
- * 2. Exact Title + Artist Normalized Match (120 pts)
- * 3. Exact Title (100 pts)
- * 4. Strong Title Match (80 pts)
- * 5. Partial Title Match (50 pts)
- *
- * Penalties:
- * - If candidate is a cover, remix, live, karaoke, slowed/reverb, or snippet, and user did NOT ask for it: -50 pts.
- * - If candidate duration < 90s: -60 pts.
  */
 export function findBestSongMatch({ requestedTitle, requestedArtist = null, results = [] }) {
   if (!requestedTitle || !Array.isArray(results) || results.length === 0) {
@@ -194,7 +197,7 @@ export function findBestSongMatch({ requestedTitle, requestedArtist = null, resu
     if (!userWantsNonOriginal) {
       for (const kw of NON_ORIGINAL_KEYWORDS) {
         if (candidateCombined.includes(kw)) {
-          score -= 50; // Deduct heavily for unwanted covers/remixes/snippets
+          score -= 50;
           break;
         }
       }
@@ -205,7 +208,6 @@ export function findBestSongMatch({ requestedTitle, requestedArtist = null, resu
       score -= 60;
     }
 
-    // Classify match
     let matchType = 'PARTIAL_TITLE';
     if (score >= 130) matchType = 'EXACT_TITLE_ARTIST';
     else if (score >= 95) matchType = 'EXACT_TITLE';
@@ -221,9 +223,9 @@ export function findBestSongMatch({ requestedTitle, requestedArtist = null, resu
   }
 
   const confidence = Math.min(1.0, Math.max(0, highestScore / 130));
-  const MIN_CONFIDENCE_THRESHOLD = 0.40;
+  const MIN_CONFIDENCE_THRESHOLD = 0.35;
 
-  if (highestScore < 40 || confidence < MIN_CONFIDENCE_THRESHOLD || !bestMatch) {
+  if (highestScore < 30 || confidence < MIN_CONFIDENCE_THRESHOLD || !bestMatch) {
     return {
       song: null,
       confidence: 0,

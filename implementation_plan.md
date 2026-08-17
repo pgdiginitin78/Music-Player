@@ -1,97 +1,58 @@
-# PARO — Fast, Voice-First, Personalized AI Music Companion Implementation Plan
+# Implementation Plan: iOS Web/PWA, Speech Recognition & Background Audio Optimization
 
-PARO is a voice-first, low-latency, personalized AI music companion seamlessly integrated into your music application. It features a 3-level fast processing pipeline, native Web Speech integration, theme-aware glassmorphic UI, predictive queue re-ranking, and strict per-user data isolation.
+Ensure PARO Voice Assistant and the Music Player web application deliver production-grade reliability across iPhone/iOS (Mobile Safari, iOS Chrome, iOS Edge, iOS Firefox, standalone PWA) and Desktop browsers, adhering strictly to iOS WebKit platform capabilities and security policies.
 
----
+## User Review Required
 
-## ⚡ Performance Audit & Bottleneck Analysis
+> [!IMPORTANT]
+> - **iOS Capability Detection**: Centralized in `deviceCapabilities.js`. Detects iOS/iPadOS, WebKit engines, PWA standalone mode, HTTPS secure context, and `SpeechRecognition` / `webkitSpeechRecognition` availability.
+> - **iOS Speech Recognition UX**: On iOS (where WebKit suspends background/idle SpeechRecognition and cuts off continuous mic loops), PARO gracefully falls back to **User-Activated Tap-to-Talk**. The user taps the microphone button, speaks a command (e.g., "Play Kesariya"), and PARO executes the action and returns to IDLE. On Desktop, the full `"Hey Paro"` wake-word activation lifecycle remains active.
+> - **iOS Background Audio & Media Session**: Music playback continues when the app goes into the background or the screen locks (where iOS/browser policies permit). Media Session API metadata (title, artist, album, artwork) and lock-screen controls (play, pause, next, previous, seek) are synchronized with the YouTube player engine.
+> - **PWA Support**: Meta tags and Web App Manifest (`manifest.json`) added to enable standalone PWA mode on iOS ("Add to Home Screen").
 
-| Bottleneck in Previous System | Solution in PARO Architecture | Target Latency |
-| :--- | :--- | :--- |
-| **Python Process Spawning** (`spawn python index.py` per request adds ~500ms CLI startup overhead) | **Node.js Fast Intent Router (`paroFastRouter.js`)** handles Level 1 & Level 2 intents directly in Node.js memory. Python daemon handles Level 3. | **< 100ms** |
-| **Sequential DB & Search Queries** (User Profile → Likes → Events → YouTube Search sequentially) | **Parallel Async Execution (`Promise.all`)** for candidate search, user profile loading, and trend calculation. | **< 200ms** |
-| **No Client-side Command Routing** (Simple "pause" or "skip" commands sent to server) | **Level 1 Client Intent Engine** executes instant playback controls (`pause`, `play`, `skip`, `volume`) locally in browser. | **< 50ms** |
-| **No Request Interruption** (Rapid speech creates out-of-order execution) | **AbortController & Request Cancellation (`latestRequestId`)** ensures latest intent wins. | **Instant Override** |
+## Proposed Changes
 
----
+### Client Services & Configuration
 
-## 🏗️ PARO 3-Level Processing Architecture
+#### [NEW] [deviceCapabilities.js](file:///d:/myprojects/client/client/src/services/deviceCapabilities.js)
+- Implements centralized capability detection: `isIOS`, `isSafari`, `isStandalonePWA`, `isSecureContext`, `supportsSpeechRecognition`, `supportsContinuousWakeWord`, `supportsMediaSession`, `supportsMicrophone`.
+- Provides `getParoDiagnostics()` for diagnostic panel reporting.
 
-```
-                                  User Voice / Text Input
-                                             │
-                                             ▼
-                 ┌────────────────────────────────────────────────────────┐
-                 │    Level 1: Local Client Engine (Browser < 50ms)        │
-                 │  (Play, Pause, Resume, Skip, Next, Previous, Volume)  │
-                 └───────────────────────────┬────────────────────────────┘
-                                             │ (If not Level 1)
-                                             ▼
-                 ┌────────────────────────────────────────────────────────┐
-                 │     Level 2: Fast Server Intent Router (< 150ms)       │
-                 │ ("play romantic songs", "play Arijit", "trending")     │
-                 └───────────────────────────┬────────────────────────────┘
-                                             │ (If complex conversation)
-                                             ▼
-                 ┌────────────────────────────────────────────────────────┐
-                 │    Level 3: Deep Conversational Engine (Python AI)      │
-                 │ ("Why did you pick this?", "Slowly raise the vibe")    │
-                 └────────────────────────────────────────────────────────┘
-```
+#### [MODIFY] [PAROVoiceEngine.js](file:///d:/myprojects/client/client/src/services/PAROVoiceEngine.js)
+- Imports `deviceCapabilities`.
+- If `supportsContinuousWakeWord` is `false` (iOS browsers):
+  - Disables continuous wake-word background loops to prevent WebKit `onerror` loops (`not-allowed` / `audio-capture`), battery drain, and browser suspension.
+  - Configures `idle` state to prompt: *"Tap mic to talk to PARO"*.
+  - When mic is tapped, initiates single-shot recognition, listens for 1 command, executes, and cleanly returns to `idle`.
+- If `supportsContinuousWakeWord` is `true` (Desktop Chrome/Edge):
+  - Preserves full `"Hey Paro"` wake-word activation lifecycle.
+- Handles `visibilitychange`: Pauses recognition when `document.visibilityState === 'hidden'` and recovers safely on `visible`.
+- Checks `window.isSecureContext` and handles getUserMedia track cleanup (`track.stop()`).
 
----
+#### [MODIFY] [MusicContext.jsx](file:///d:/myprojects/client/client/src/context/MusicContext.jsx)
+- Ensures Media Session API action handlers (`play`, `pause`, `previoustrack`, `nexttrack`, `seekto`) are registered and metadata is updated on track changes.
+- Ensures visibility changes do NOT forcibly pause background music playback when the app is minimized/locked.
 
-## 📁 File-by-File Implementation Plan
+#### [MODIFY] [index.html](file:///d:/myprojects/client/client/index.html)
+- Adds iOS Web App meta tags (`apple-mobile-web-app-capable`, `apple-mobile-web-app-status-bar-style`, `apple-mobile-web-app-title`) and link to `manifest.json`.
 
-### 1. Client-Side Voice Engine & Theme-Aware UI (React)
+#### [NEW] [manifest.json](file:///d:/myprojects/client/client/public/manifest.json)
+- Configures Web App Manifest for PWA installation (`display: standalone`, `theme_color`, `icons`).
 
-#### [NEW] [PAROVoiceEngine.js](file:///d:/myprojects/client/client/src/services/PAROVoiceEngine.js)
-- Manages Web Speech API (`webkitSpeechRecognition` / `SpeechRecognition`).
-- Handles Voice Activity Detection (VAD), continuous listening, speech transcript parsing, and speech synthesis.
-- Implements request cancellation (`AbortController` & `latestRequestId`).
+#### [MODIFY] [ParoWidget.jsx](file:///d:/myprojects/client/client/src/components/PARO/ParoWidget.jsx)
+- Updates `getStateText()` to display platform-appropriate instructions.
+- Includes `getParoDiagnostics()` in the DEV diagnostic panel.
 
-#### [NEW] [ParoWidget.jsx](file:///d:/myprojects/client/client/src/components/PARO/ParoWidget.jsx)
-- Theme-aware visual widget matching `ThemeContext` design tokens (glow, primary colors, backdrop glassmorphism).
-- Displays visual states: `idle`, `listening`, `processing`, `thinking`, `playing`, `speaking`, `error`.
-- Renders animated voice pulse ring during microphone input and quick action pills.
+## Verification Plan
 
-#### [MODIFY] [App.jsx](file:///d:/myprojects/client/client/src/App.jsx)
-- Renders `<ParoWidget />` seamlessly above music player bar.
-
----
-
-### 2. Backend Fast Intent Router & Services (Node.js Express)
-
-#### [NEW] [paroFastRouter.js](file:///d:/myprojects/client/server/services/paroFastRouter.js)
-- High-speed in-memory intent router. Evaluates pattern matches and mood dictionaries in **< 5ms** without requiring external process or LLM calls for common music queries.
-
-#### [NEW] [paroPredictiveQueue.js](file:///d:/myprojects/client/server/services/paroPredictiveQueue.js)
-- Background pre-fetching service: predicts and pre-ranks upcoming 5-10 songs while current track is playing.
-
-#### [NEW] [paroRoutes.js](file:///d:/myprojects/client/server/routes/paroRoutes.js)
-- Fast PARO API Endpoints under `/api/paro`:
-  - `POST /api/paro/command` (Level 1, Level 2, Level 3 fast processing pipeline).
-  - `POST /api/paro/events` (Batch listening event pipeline).
-  - `GET /api/paro/predictive-queue` (Predictive queue pre-fetch).
-
-#### [MODIFY] [app.js](file:///d:/myprojects/client/server/app.js)
-- Mounts `/api/paro` route handler.
-
----
-
-### 3. Python Persistent AI Daemon & Optimization (`ai/pulseMind/`)
-
-#### [MODIFY] [index.py](file:///d:/myprojects/client/ai/pulseMind/index.py)
-- Updated for low-latency JSON payload evaluation and intent caching.
-
----
-
-## 🧪 Verification & Latency Test Plan
-
-### Latency Targets
-1. **Level 1 Instant Commands** (`pause`, `skip`, `volume`): **< 50ms**
-2. **Level 2 Music Intent** (`"play romantic songs"`, `"trending"`): **< 200ms**
-3. **Level 3 Complex AI Conversation**: **Streamed immediately**
-
-### Cross-User Security Verification
-- Ensure `req.userContext.userId` is enforced across all 3 levels.
+### Manual Verification
+1. **iOS / Mobile Safari Test**:
+   - Open app on iOS or simulate Mobile Safari.
+   - Verify PARO shows *"Tap mic to talk to PARO"*.
+   - Tap mic -> Speak "Play Kesariya" -> Verify search succeeds and song plays.
+2. **Desktop Test**:
+   - Speak "Hey Paro" -> Verify PARO greets and listens for command.
+3. **Background Music & Media Session Test**:
+   - Start song playback -> Switch apps or lock screen -> Verify lock screen displays song title/artist/artwork and Media Session controls work.
+4. **PWA Installation Test**:
+   - Verify manifest.json and Apple meta tags load cleanly without errors.
